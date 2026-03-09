@@ -233,3 +233,16 @@ Phase 3: Custom domains (so you're not stuck with just crypto/military in the dr
 Phase 4: Transcript saving, debate history, export to markdown/JSON, analysis stats
 Phase 5: UI polish (agent timers, fullscreen cards, sound notifications)
 You can feed the progress/ folder to your next chat session and it'll pick up right where we left off.
+
+What is NOT in this plan (frontend comes next)
+
+
+
+
+
+Mode toggle in control panel UI
+Scrolling turn-feed display (replaces agent card grid for turn-based
+Turn counter in controls bar (Turn 4 / 12)
+Grand Debate synthesis panel removal for turn-based mode
+
+The full transcript feed in order

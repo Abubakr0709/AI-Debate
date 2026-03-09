@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ARENA — AI Ideation Engine</title>
+<title>ARENA — AI Debate System</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -17,7 +17,6 @@
     --green: #00ff88;
     --red: #ff3366;
     --blue: #00d4ff;
-    --orange: #ff6b35;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -51,9 +50,9 @@
     z-index: 0;
     animation: orb-drift 20s ease-in-out infinite alternate;
   }
-  .orb-1 { width: 600px; height: 600px; background: #ff6b35; top: -200px; left: -200px; }
-  .orb-2 { width: 500px; height: 500px; background: #ff3366; bottom: -150px; right: -150px; animation-delay: -10s; }
-  .orb-3 { width: 400px; height: 400px; background: #00ff88; top: 40%; left: 40%; animation-delay: -5s; }
+  .orb-1 { width: 600px; height: 600px; background: #00d4ff; top: -200px; left: -200px; }
+  .orb-2 { width: 500px; height: 500px; background: #a855f7; bottom: -150px; right: -150px; animation-delay: -10s; }
+  .orb-3 { width: 400px; height: 400px; background: #ff3366; top: 40%; left: 40%; animation-delay: -5s; }
 
   @keyframes orb-drift {
     from { transform: translate(0, 0) scale(1); }
@@ -82,12 +81,12 @@
 
   .logo-mark {
     width: 36px; height: 36px;
-    border: 2px solid var(--orange);
+    border: 2px solid var(--blue);
     border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     font-family: 'Space Mono', monospace;
-    font-size: 14px; color: var(--orange);
-    box-shadow: 0 0 20px rgba(255,107,53,0.3);
+    font-size: 14px; color: var(--blue);
+    box-shadow: 0 0 20px rgba(0,212,255,0.3);
   }
 
   .logo-text {
@@ -139,7 +138,7 @@
     transition: all 0.2s;
     letter-spacing: 1px;
   }
-  .btn-agents:hover { border-color: var(--orange); color: var(--orange); }
+  .btn-agents:hover { border-color: var(--blue); color: var(--blue); }
 
   /* ── Control Panel ───────────────────────────────────────── */
   .control-panel {
@@ -149,7 +148,7 @@
     padding: 28px;
     margin-bottom: 28px;
     display: grid;
-    grid-template-columns: 1fr 240px auto;
+    grid-template-columns: 1fr 200px 140px auto;
     gap: 16px;
     align-items: end;
   }
@@ -162,7 +161,7 @@
     color: var(--muted); text-transform: uppercase;
   }
 
-  input[type="text"], input[type="number"], select, textarea {
+  input[type="text"], select, textarea {
     width: 100%;
     padding: 12px 16px;
     background: var(--bg3);
@@ -174,9 +173,9 @@
     transition: border-color 0.2s, box-shadow 0.2s;
   }
 
-  input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
-    border-color: rgba(255,107,53,0.4);
-    box-shadow: 0 0 0 3px rgba(255,107,53,0.08);
+  input[type="text"]:focus, select:focus, textarea:focus {
+    border-color: rgba(0,212,255,0.4);
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.08);
   }
 
   textarea { resize: vertical; font-size: 13px; line-height: 1.6; }
@@ -185,16 +184,16 @@
 
   .btn-start {
     padding: 12px 28px;
-    background: linear-gradient(135deg, #ff6b35, #e05520);
+    background: linear-gradient(135deg, #00d4ff, #0099cc);
     border: none; border-radius: 10px;
-    color: #fff;
+    color: #080810;
     font-family: 'Syne', sans-serif;
     font-size: 14px; font-weight: 700;
     letter-spacing: 1px; cursor: pointer;
     transition: all 0.2s;
     white-space: nowrap; text-transform: uppercase;
   }
-  .btn-start:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(255,107,53,0.4); }
+  .btn-start:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(0,212,255,0.4); }
   .btn-start:active { transform: translateY(0); }
   .btn-start:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
@@ -267,7 +266,7 @@
     border: 1px solid var(--border);
     transition: all 0.4s;
   }
-  .round-pip.active { background: var(--orange); box-shadow: 0 0 12px var(--orange); border-color: var(--orange); }
+  .round-pip.active { background: var(--blue); box-shadow: 0 0 12px var(--blue); border-color: var(--blue); }
   .round-pip.done { background: var(--green); border-color: var(--green); }
 
   .round-mode {
@@ -278,11 +277,8 @@
     border: 1px solid var(--border);
     color: var(--muted);
   }
-  .round-mode.phase-diverge { color: var(--blue); border-color: rgba(0,212,255,0.3); }
-  .round-mode.phase-challenge { color: var(--red); border-color: rgba(255,51,102,0.3); }
-  .round-mode.phase-combine { color: var(--gold); border-color: rgba(255,215,0,0.3); }
-  .round-mode.phase-stress-test { color: var(--orange); border-color: rgba(255,107,53,0.3); }
-  .round-mode.phase-execute { color: var(--green); border-color: rgba(0,255,136,0.3); }
+  .round-mode.solo-mode { color: var(--blue); border-color: rgba(0,212,255,0.3); }
+  .round-mode.debate-mode { color: var(--red); border-color: rgba(255,51,102,0.3); }
 
   /* ── Agent Grid ──────────────────────────────────────────── */
   .arena {
@@ -308,13 +304,13 @@
 
   @keyframes card-glow {
     0% { box-shadow: 0 0 0 transparent; }
-    50% { box-shadow: 0 0 40px var(--agent-glow, rgba(255,107,53,0.3)); }
-    100% { box-shadow: 0 0 20px var(--agent-glow, rgba(255,107,53,0.1)); }
+    50% { box-shadow: 0 0 40px var(--agent-glow, rgba(0,212,255,0.3)); }
+    100% { box-shadow: 0 0 20px var(--agent-glow, rgba(0,212,255,0.1)); }
   }
 
   .agent-card.active {
-    border-color: var(--agent-border, var(--orange));
-    box-shadow: 0 0 30px var(--agent-glow, rgba(255,107,53,0.15));
+    border-color: var(--agent-border, var(--blue));
+    box-shadow: 0 0 30px var(--agent-glow, rgba(0,212,255,0.15));
   }
 
   .agent-header {
@@ -357,11 +353,11 @@
     border-bottom: 2px solid transparent;
   }
   .round-tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
-  .round-tab.active-tab { color: var(--text); border-bottom-color: var(--tab-color, var(--orange)); }
+  .round-tab.active-tab { color: var(--text); border-bottom-color: var(--tab-color, var(--blue)); }
 
   .agent-content {
     padding: 20px;
-    min-height: 160px; max-height: 340px;
+    min-height: 160px; max-height: 280px;
     overflow-y: auto;
     font-size: 14px; line-height: 1.7;
     color: rgba(232,232,240,0.9);
@@ -399,13 +395,10 @@
     transition: all 0.2s; white-space: nowrap;
   }
   .chip:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
-  .chip.chip-orange:hover { color: var(--orange); border-color: rgba(255,107,53,0.4); }
-  .chip.chip-green:hover { color: var(--green); border-color: rgba(0,255,136,0.4); }
-  .chip.chip-blue:hover { color: var(--blue); border-color: rgba(0,212,255,0.4); }
-  .chip.chip-red:hover { color: var(--red); border-color: rgba(255,51,102,0.4); }
-  .chip.chip-gold:hover { color: var(--gold); border-color: rgba(255,215,0,0.4); }
+  .chip.crypto:hover { color: var(--blue); border-color: rgba(0,212,255,0.4); }
+  .chip.military:hover { color: #ff6b35; border-color: rgba(255,107,53,0.4); }
 
-  /* ── Empty / Complete / Harvest States ───────────────────── */
+  /* ── Empty / Complete States ─────────────────────────────── */
   .empty-state {
     grid-column: 1 / -1;
     display: flex; flex-direction: column;
@@ -426,14 +419,14 @@
   .complete-banner h3 { font-size: 18px; font-weight: 800; color: var(--green); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
   .complete-banner p { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
 
-  .harvest-banner {
+  .stopped-banner {
     grid-column: 1 / -1; padding: 24px;
-    background: linear-gradient(135deg, rgba(255,215,0,0.06), rgba(255,107,53,0.04));
-    border: 1px solid rgba(255,215,0,0.25);
+    background: linear-gradient(135deg, rgba(255,51,102,0.05), rgba(255,215,0,0.05));
+    border: 1px solid rgba(255,51,102,0.2);
     border-radius: 12px; text-align: center;
   }
-  .harvest-banner h3 { font-size: 18px; font-weight: 800; color: var(--gold); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
-  .harvest-banner p { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+  .stopped-banner h3 { font-size: 18px; font-weight: 800; color: var(--red); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
+  .stopped-banner p { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
 
   .arena-container {
     overflow-y: auto;
@@ -576,7 +569,7 @@
     width: 100%;
     margin-top: 8px;
   }
-  .btn-add-agent:hover { border-color: var(--orange); color: var(--orange); }
+  .btn-add-agent:hover { border-color: var(--blue); color: var(--blue); }
 
   .btn-save {
     padding: 10px 24px;
@@ -597,7 +590,7 @@
 
   /* ── Responsive ──────────────────────────────────────────── */
   @media (max-width: 900px) {
-    .control-panel { grid-template-columns: 1fr; }
+    .control-panel { grid-template-columns: 1fr 1fr; }
     .btn-start { grid-column: 1/-1; }
     .arena { grid-template-columns: 1fr !important; }
     .ar-fields { grid-template-columns: 1fr; }
@@ -617,7 +610,7 @@
     line-height: 1;
   }
   .agent-card:hover .card-edit-btn { opacity: 1; }
-  .card-edit-btn:hover { border-color: var(--orange); color: var(--orange); }
+  .card-edit-btn:hover { border-color: var(--blue); color: var(--blue); }
 
   .persona-popover {
     display: none;
@@ -662,14 +655,14 @@
 
   .pp-save {
     flex: 1; padding: 9px;
-    background: linear-gradient(135deg, var(--orange), #e05520);
+    background: linear-gradient(135deg, var(--blue), #0099cc);
     border: none; border-radius: 8px;
-    color: #fff;
+    color: #080810;
     font-family: 'Syne', sans-serif;
     font-size: 12px; font-weight: 700;
     cursor: pointer; transition: all 0.15s; letter-spacing: 1px;
   }
-  .pp-save:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,107,53,0.4); }
+  .pp-save:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,212,255,0.4); }
   .pp-save:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
   .pp-cancel {
@@ -682,7 +675,7 @@
   }
   .pp-cancel:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
 
-  /* ── Synthesis Panel ─────────────────────────────────────── */
+  /* ── Grand Debate Synthesis Panel ────────────────────────── */
   .synthesis-panel {
     margin-top: 24px;
     background: var(--bg2);
@@ -730,11 +723,8 @@
     font-size: 10px; padding: 3px 10px;
     border-radius: 100px;
   }
-  .synth-mode-badge.diverge { color: var(--blue); border: 1px solid rgba(0,212,255,0.3); }
-  .synth-mode-badge.challenge { color: var(--red); border: 1px solid rgba(255,51,102,0.3); }
-  .synth-mode-badge.combine { color: var(--gold); border: 1px solid rgba(255,215,0,0.3); }
-  .synth-mode-badge.stress-test { color: var(--orange); border: 1px solid rgba(255,107,53,0.3); }
-  .synth-mode-badge.execute { color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+  .synth-mode-badge.solo { color: var(--blue); border: 1px solid rgba(0,212,255,0.3); }
+  .synth-mode-badge.debate { color: var(--red); border: 1px solid rgba(255,51,102,0.3); }
 
   .synth-entry {
     padding: 20px 24px;
@@ -775,7 +765,7 @@
       <div class="logo-mark">AI</div>
       <div>
         <div class="logo-text">Arena</div>
-        <div class="logo-sub">Multi-Agent Ideation Engine</div>
+        <div class="logo-sub">Multi-Agent Debate System</div>
       </div>
     </div>
     <div class="header-actions">
@@ -789,51 +779,64 @@
 
   <div class="control-panel">
     <div class="field-group">
-      <label>Topic / Problem</label>
-      <input type="text" id="topicInput" placeholder="e.g. How to build a profitable AI-powered service with zero funding" />
+      <label>Debate Topic</label>
+      <input type="text" id="topicInput" placeholder="e.g. Should we use ADX threshold 18 instead of 25 for BTC entries?" />
       <div class="topic-chips">
-        <span class="chip chip-orange" onclick="setTopic('How to monetize local LLMs and open-source AI models as a solo developer', 'AI / SaaS')">Monetize Local AI</span>
-        <span class="chip chip-red" onclick="setTopic('Counter-drone defense systems for civilian infrastructure protection', 'Defense Tech')">Counter-Drone Tech</span>
-        <span class="chip chip-blue" onclick="setTopic('Building a crypto trading bot that profits in sideways low-volatility markets', 'Crypto / Trading')">Sideways Market Bot</span>
-        <span class="chip chip-green" onclick="setTopic('Untapped business opportunities in the aging population and longevity economy', 'Healthcare / Business')">Aging Population Biz</span>
-        <span class="chip chip-gold" onclick="setTopic('Automated content creation and distribution pipeline that generates passive income', 'Media / AI')">Content Pipeline</span>
+        <span class="chip crypto" onclick="setTopic('What is the optimal risk-per-trade percentage for a BTC scalping bot?', 'crypto')">BTC Risk %</span>
+        <span class="chip crypto" onclick="setTopic('Should we use sentiment analysis or pure price action for crypto entries?', 'crypto')">Sentiment vs TA</span>
+        <span class="chip crypto" onclick="setTopic('What is the best stop-loss strategy for a volatile crypto market?', 'crypto')">Stop Loss</span>
+        <span class="chip military" onclick="setTopic('How should autonomous drones decide when to abort a mission?', 'military')">Drone Abort Logic</span>
+        <span class="chip military" onclick="setTopic('What AI model architecture is best for real-time battlefield threat detection?', 'military')">Threat Detection AI</span>
+        <span class="chip military" onclick="setTopic('Should autonomous weapons have a kill-switch and who controls it?', 'military')">Kill Switch Ethics</span>
       </div>
     </div>
     <div class="field-group">
-      <label>Focus Area</label>
-      <input type="text" id="domainInput" placeholder="e.g. fintech, defense, AI, crypto..." />
+      <label>Domain</label>
+      <select id="domainSelect">
+        <option value="crypto">Crypto / Trading</option>
+        <option value="military">Military / Defense</option>
+      </select>
     </div>
-    <button class="btn-start" id="startBtn" onclick="startDebate()">Ideate</button>
+    <div class="field-group">
+      <label>Rounds</label>
+      <select id="roundsSelect">
+        <option value="3">3 Rounds</option>
+        <option value="4">4 Rounds</option>
+        <option value="5">5 Rounds</option>
+        <option value="2">2 Rounds</option>
+      </select>
+    </div>
+    <button class="btn-start" id="startBtn" onclick="startDebate()">Start</button>
   </div>
 
   <div id="liveControls" class="live-controls">
     <span class="lc-label">Controls</span>
     <button class="lc-btn pause-btn" id="pauseBtn" onclick="debateAction('pause')">Pause</button>
     <button class="lc-btn skip-btn" id="skipBtn" onclick="debateAction('skip')">Skip Agent</button>
-    <button class="lc-btn stop-btn" id="stopBtn" onclick="debateAction('stop')">🌾 Harvest &amp; Stop</button>
+    <button class="lc-btn stop-btn" id="stopBtn" onclick="debateAction('stop')">Stop</button>
     <div class="lc-spacer"></div>
     <span class="lc-agent-name" id="lcAgentName"></span>
   </div>
 
   <div id="roundTracker" class="round-tracker" style="display:none">
-    <span class="round-label">Phases</span>
+    <span class="round-label">Rounds</span>
     <div id="roundPips" style="display:flex;gap:8px"></div>
     <div class="round-mode" id="roundMode">&mdash;</div>
   </div>
 
   <div class="arena-container">
-    <div class="arena cols-3" id="arena">
+    <div class="arena cols-2" id="arena">
       <div class="empty-state">
-        <div class="big-icon">💡</div>
-        <h2>Ideation Engine Ready</h2>
-        <p>Enter a problem or opportunity. Three AI agents will brainstorm, challenge, combine, stress-test, and build an execution plan together.</p>
+        <div class="big-icon">&#9876;&#65039;</div>
+        <h2>Arena Ready</h2>
+        <p>Set your topic, choose a domain, and start the debate. AI agents will argue, challenge, and synthesize ideas in real time.</p>
       </div>
     </div>
   </div>
 
   <div id="synthesisPanel" class="synthesis-panel" style="display:none">
     <div class="synthesis-header" onclick="toggleSynthesis()">
-      <h3 id="synthTitle">Full Ideation Transcript</h3>
+      <h3>Grand Debate &mdash; Full Transcript</h3>
       <span class="synth-toggle" id="synthToggle">COLLAPSE</span>
     </div>
     <div id="synthesisBody"></div>
@@ -879,15 +882,12 @@ let AGENTS = [];
 let availableModels = [];
 let agentData = {};
 let currentRound = 0;
-let totalRounds = 5;
+let totalRounds = 3;
 let ws = null;
 let activeAgent = null;
 let activeTab = {};
 let debateRunning = false;
 let debatePaused = false;
-let phaseNames = {};
-let currentPhase = '';
-let debateAgents = [];
 
 // ── Init ────────────────────────────────────────────────────
 async function init() {
@@ -920,14 +920,14 @@ async function loadModels() {
 // ── Topic helper ────────────────────────────────────────────
 function setTopic(topic, domain) {
   document.getElementById('topicInput').value = topic;
-  document.getElementById('domainInput').value = domain;
+  document.getElementById('domainSelect').value = domain;
 }
 
 // ── Arena grid column class ─────────────────────────────────
 function getGridClass(count) {
-  if (count <= 1) return 'cols-1';
   if (count <= 2) return 'cols-2';
-  if (count <= 3) return 'cols-3';
+  if (count <= 4) return 'cols-2';
+  if (count <= 6) return 'cols-3';
   return 'cols-4';
 }
 
@@ -961,11 +961,11 @@ function renderArena(agents, rounds) {
 
     let tabsHtml = '';
     for (let r = 1; r <= rounds; r++) {
-      const phaseName = phaseNames[String(r)] || `PHASE ${r}`;
+      const mode = r <= 2 ? 'SOLO' : 'DEBATE';
       tabsHtml += `<button class="round-tab ${r===1?'active-tab':''}"
         style="--tab-color:${agent.color}"
         data-round="${r}"
-        onclick="switchTab('${agent.id}', ${r})">P${r} &middot; ${phaseName}</button>`;
+        onclick="switchTab('${agent.id}', ${r})">R${r} &middot; ${mode}</button>`;
     }
 
     const modelShort = (agent.model || '').split('/').pop() || agent.model;
@@ -982,7 +982,7 @@ function renderArena(agents, rounds) {
       </div>
       <div class="agent-rounds" id="tabs-${agent.id}">${tabsHtml}</div>
       <div class="agent-content" id="content-${agent.id}">
-        <span class="placeholder">Waiting for ideation to begin...</span>
+        <span class="placeholder">Waiting for debate to begin...</span>
       </div>
     `;
     arena.appendChild(card);
@@ -1015,7 +1015,7 @@ function renderAgentContent(agentId, round) {
   contentEl.scrollTop = contentEl.scrollHeight;
 }
 
-// ── Phase Pips ──────────────────────────────────────────────
+// ── Round Pips ──────────────────────────────────────────────
 function updateRoundPips(current, total) {
   const pips = document.getElementById('roundPips');
   pips.innerHTML = '';
@@ -1025,10 +1025,13 @@ function updateRoundPips(current, total) {
     pips.appendChild(pip);
   }
   const modeEl = document.getElementById('roundMode');
-  const pName = currentPhase || phaseNames[String(current)] || '';
-  modeEl.textContent = pName;
-  const pClass = pName.toLowerCase().replace(/[^a-z\-]/g, '');
-  modeEl.className = 'round-mode' + (pClass ? ` phase-${pClass}` : '');
+  if (current <= 2) {
+    modeEl.textContent = 'SOLO MODE';
+    modeEl.className = 'round-mode solo-mode';
+  } else {
+    modeEl.textContent = 'DIRECT DEBATE';
+    modeEl.className = 'round-mode debate-mode';
+  }
 }
 
 // ── Status ──────────────────────────────────────────────────
@@ -1068,10 +1071,11 @@ function debateAction(action) {
   ws.send(JSON.stringify({ action }));
 }
 
-// ── Start Ideation ──────────────────────────────────────────
+// ── Start Debate ────────────────────────────────────────────
 function startDebate() {
   const topic = document.getElementById('topicInput').value.trim();
-  const domain = document.getElementById('domainInput').value.trim() || 'general';
+  const domain = document.getElementById('domainSelect').value;
+  const rounds = parseInt(document.getElementById('roundsSelect').value);
 
   if (!topic) {
     const input = document.getElementById('topicInput');
@@ -1081,16 +1085,11 @@ function startDebate() {
     return;
   }
 
-  totalRounds = 5;
+  totalRounds = rounds;
   currentRound = 0;
-  currentPhase = '';
-  phaseNames = {};
   activeAgent = null;
   debateRunning = true;
   debatePaused = false;
-
-  // Hide previous synthesis/harvest panels
-  document.getElementById('synthesisPanel').style.display = 'none';
 
   document.getElementById('startBtn').disabled = true;
   setStatus('live', 'CONNECTING...');
@@ -1101,7 +1100,7 @@ function startDebate() {
   ws = new WebSocket(`ws://${location.host}/ws/debate`);
 
   ws.onopen = () => {
-    ws.send(JSON.stringify({ topic, domain }));
+    ws.send(JSON.stringify({ topic, domain, rounds }));
     setStatus('live', 'LIVE');
   };
 
@@ -1128,18 +1127,19 @@ function startDebate() {
 }
 
 // ── Message Handler ─────────────────────────────────────────
+let debateAgents = [];
+
 function handleMessage(msg) {
   switch (msg.type) {
     case 'agents_config': {
       debateAgents = msg.agents;
-      phaseNames = msg.phases || {};
-      totalRounds = msg.total_phases || 5;
-      initAgentData(debateAgents, totalRounds);
-      renderArena(debateAgents, totalRounds);
+      const rounds = totalRounds;
+      initAgentData(debateAgents, rounds);
+      renderArena(debateAgents, rounds);
       document.getElementById('roundTracker').style.display = 'flex';
       const pipsEl = document.getElementById('roundPips');
       pipsEl.innerHTML = '';
-      for (let i = 0; i < totalRounds; i++) {
+      for (let i = 0; i < rounds; i++) {
         const pip = document.createElement('div');
         pip.className = 'round-pip';
         pipsEl.appendChild(pip);
@@ -1149,7 +1149,6 @@ function handleMessage(msg) {
 
     case 'round_start':
       currentRound = msg.round;
-      currentPhase = msg.phase || '';
       updateRoundPips(msg.round, totalRounds);
       break;
 
@@ -1221,20 +1220,19 @@ function handleMessage(msg) {
 
     case 'debate_stopped':
       debateRunning = false;
-      setStatus('idle', 'HARVESTED');
+      setStatus('idle', 'STOPPED');
       document.getElementById('startBtn').disabled = false;
       showLiveControls(false);
       {
         const banner = document.createElement('div');
-        banner.className = 'harvest-banner';
-        banner.innerHTML = `<h3>🌾 Ideas Harvested</h3><p>You stopped the session early. All generated ideas are preserved below.</p>`;
+        banner.className = 'stopped-banner';
+        banner.innerHTML = `<h3>Debate Stopped</h3><p>You stopped the debate. Review what was generated above, or start a new one.</p>`;
         document.getElementById('arena').appendChild(banner);
       }
       debateAgents.forEach(a => {
         const ind = document.getElementById(`ind-${a.id}`);
         if (ind) ind.className = 'agent-indicator';
       });
-      renderSynthesis(true);
       break;
 
     case 'debate_complete':
@@ -1245,7 +1243,7 @@ function handleMessage(msg) {
       {
         const banner = document.createElement('div');
         banner.className = 'complete-banner';
-        banner.innerHTML = `<h3>Ideation Complete</h3><p>All 5 phases finished &mdash; scroll down for the full ideation transcript.</p>`;
+        banner.innerHTML = `<h3>Debate Complete</h3><p>All ${totalRounds} rounds finished &mdash; scroll down for the Grand Debate full transcript.</p>`;
         document.getElementById('arena').appendChild(banner);
       }
       updateRoundPips(totalRounds + 1, totalRounds);
@@ -1253,7 +1251,7 @@ function handleMessage(msg) {
         const ind = document.getElementById(`ind-${a.id}`);
         if (ind) ind.className = 'agent-indicator';
       });
-      renderSynthesis(false);
+      renderSynthesis();
       break;
 
     case 'error':
@@ -1261,7 +1259,7 @@ function handleMessage(msg) {
       document.getElementById('startBtn').disabled = false;
       showLiveControls(false);
       debateRunning = false;
-      console.error('Error:', msg.message);
+      console.error('Debate error:', msg.message);
       break;
   }
 }
@@ -1339,10 +1337,6 @@ function renderAgentList() {
             ${buildModelOptions(agent.model)}
           </select>
         </div>
-        <div class="ar-field">
-          <label>Temperature (0.1 – 2.0)</label>
-          <input type="number" step="0.1" min="0.1" max="2.0" value="${agent.temperature || 1.0}" onchange="editAgents[${idx}].temperature=parseFloat(this.value)">
-        </div>
         <div class="ar-field full-width">
           <label>Persona / System Prompt</label>
           <textarea rows="3" onchange="editAgents[${idx}].persona=this.value">${esc(agent.persona || '')}</textarea>
@@ -1365,7 +1359,7 @@ function removeAgent(idx) {
 
 function addNewAgentRow() {
   const defaultModel = availableModels.length > 0 ? availableModels[0].name : '';
-  const colors = ['#ff6b35', '#ff3366', '#00ff88', '#00d4ff', '#a855f7', '#ffd700', '#ff8c00', '#e040fb'];
+  const colors = ['#00d4ff', '#ff6b35', '#ff3366', '#a855f7', '#00ff88', '#ffd700', '#ff8c00', '#e040fb'];
   const color = colors[editAgents.length % colors.length];
   editAgents.push({
     id: '',
@@ -1373,8 +1367,7 @@ function addNewAgentRow() {
     emoji: '🤖',
     model: defaultModel,
     color: color,
-    persona: 'You are a creative problem solver. Be specific and actionable.',
-    temperature: 1.0,
+    persona: 'You are a sharp debater. Keep responses to 3-4 sentences. No fluff.'
   });
   renderAgentList();
   const newIdx = editAgents.length - 1;
@@ -1393,8 +1386,7 @@ async function saveAgents() {
       emoji: a.emoji,
       model: a.model,
       color: a.color,
-      persona: a.persona || '',
-      temperature: a.temperature || 1.0,
+      persona: a.persona || ''
     };
   });
 
@@ -1435,35 +1427,21 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// ── Synthesis / Harvest Panel ───────────────────────────────
-function renderSynthesis(isHarvest) {
+// ── Grand Debate Synthesis Panel ────────────────────────────
+function renderSynthesis() {
   const panel = document.getElementById('synthesisPanel');
   const body = document.getElementById('synthesisBody');
-  const title = document.getElementById('synthTitle');
-
-  title.textContent = isHarvest
-    ? '🌾 Harvested Ideas — Partial Transcript'
-    : '📋 Full Ideation Transcript';
-
   body.innerHTML = '';
 
   for (let r = 1; r <= totalRounds; r++) {
-    const phaseName = phaseNames[String(r)] || `PHASE ${r}`;
-    const phaseCls = phaseName.toLowerCase().replace(/[^a-z\-]/g, '');
-
-    // Check if any agent has content for this round
-    let hasContent = false;
-    debateAgents.forEach(agent => {
-      const data = agentData[agent.id] && agentData[agent.id][r];
-      if (data && data.text && data.text.trim()) hasContent = true;
-    });
-    if (!hasContent) continue;
+    const mode = r <= 2 ? 'SOLO' : 'DEBATE';
+    const modeCls = r <= 2 ? 'solo' : 'debate';
 
     const divider = document.createElement('div');
     divider.className = 'synth-round-divider';
     divider.innerHTML = `
-      <span class="synth-round-num">Phase ${r}</span>
-      <span class="synth-mode-badge ${phaseCls}">${phaseName}</span>
+      <span class="synth-round-num">Round ${r}</span>
+      <span class="synth-mode-badge ${modeCls}">${mode}</span>
     `;
     body.appendChild(divider);
 
@@ -1505,7 +1483,7 @@ let currentEditAgentId = null;
 
 function openPersonaEdit(agentId, btnEl) {
   if (debateRunning) {
-    btnEl.title = 'Cannot edit during a session';
+    btnEl.title = 'Cannot edit during a debate';
     return;
   }
 
