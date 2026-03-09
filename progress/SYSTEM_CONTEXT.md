@@ -32,13 +32,15 @@ Ollama (local LLM runtime)
 
 ```
 AI Debate/
-├── server.py          # FastAPI backend (all logic)
-├── index.html         # Full frontend (HTML + CSS + JS in one file)
+├── server.py          # FastAPI backend (all logic, ~1022 lines)
+├── index.html         # Full frontend (HTML + CSS + JS in one file, ~2130 lines)
 ├── agents.json        # Agent configurations (auto-created, editable via UI)
+├── transcripts/       # Saved debate/ideation transcripts (JSON, auto-created)
 ├── start.sh           # Startup script (checks Ollama, installs deps, runs server)
 ├── README.md          # User-facing readme
 └── progress/
-    └── SYSTEM_CONTEXT.md   # This file
+    ├── SYSTEM_CONTEXT.md   # This file
+    └── CHANGELOG.md        # Full change history
 ```
 
 ## What Has Been Implemented
@@ -96,18 +98,41 @@ AI Debate/
 - **Blank agent output (critical)**: `num_predict: 300` was too low -- DeepSeek R1 think blocks consume 200-400+ tokens, exhausting the budget before any real output. When the token limit was hit inside `<think>`, the end-of-stream guard (`if think_buffer and not inside_think`) never fired, so zero tokens reached the browser. Fixed by raising `num_predict` to 2500 and adding `num_ctx: 8192`.
 - **Responses too short**: Personas instructed "3-4 sentences" which capped visible output. Updated all 6 personas to request 5-8 sentences with domain-specific depth instructions.
 
-## Current Agents (6 total, 4 models)
+## Current Agents (4 total)
 
-| Agent | Model | Role |
-|---|---|---|
-| The Analyst | deepseek-r1-abliterated:8b | Data-driven, quantitative, skeptical |
-| The Strategist | r1-wild:latest | Big-picture, systems thinker, bold |
-| Devil's Advocate | deepseek-r1-abliterated:8b | Destroys weak arguments, provocative |
-| The Synthesizer | r1-wild:latest | Finds signal from noise, distills clarity |
-| The Tactician | mistral:7b | Action-focused, demands concrete steps |
-| The Wildcard | llama3.2:3b | Lateral thinker, unexpected connections |
+| Agent | Model | Role | Stance | Token Budget |
+|---|---|---|---|---|
+| The Inventor | r1-wild:latest | Creative ideation, non-obvious connections, revenue models | FOR | 800 |
+| The Stress-Tester | huihui_ai/deepseek-r1-abliterated:8b | Finds fatal flaws, evolves ideas through pressure | AGAINST | 600 |
+| The Builder | mistral:7b | Turns ideas into executable plans with costs/timelines | WILDCARD | 500 |
+| The Provocateur | llama3.2:3b | Constraint injection, chaos agent, forces creativity | CATALYST | 400 |
 
-## Debate Flow
+**Persona Architecture**: Agent personas in `agents.json` contain only core identity paragraphs (who they are, how they think). All round-specific instructions, format headers, and output structure are handled server-side by `build_ideation_prompt()` and `build_debate_prompt()`. The `_IDENTITY_PREFIX` dict in `server.py` prepends identity lock + ROLE summary + format rules + think-block instructions to every system prompt as defence-in-depth.
+
+## Ideation Pipeline Architecture (Data-Driven)
+
+The ideation prompt system uses 3 declarative dicts instead of procedural if/elif chains:
+
+### `AGENT_ROLE_PROMPTS`
+Fixed output format per agent. Never changes regardless of topic. Defines the headers/structure each agent must follow (e.g., Inventor always outputs INSIGHT/IDEA/MECHANISM/ADVANTAGE/CONTRARIAN ANGLE).
+
+### `ROUND_CONTEXT_MAP`
+Declares which prior outputs to inject as context for each `(round, agent_id)` pair:
+- `(1, "provocateur")`: no prior context
+- `(2, "inventor")`: sees provocateur R1
+- `(3, "builder")`: sees inventor R2
+- `(4, "stress_tester")`: sees inventor R2 + builder R3
+- `(5, "inventor")`: sees provocateur R1 + own R2 + stress_tester R4
+- `(5, "builder")`: sees own R3 + stress_tester R4
+- `(6, "*")`: `ALL_PRIOR` — all agents see everything from R1-R5
+
+### `PHASE_DIRECTIVES`
+One-line directive per `(round, agent_id)` telling the agent what to do with the context. R5 and R6 have per-agent directives (e.g., R5 inventor gets "MUTATION ROUND" with override format, R6 each agent gets a unique synthesis task).
+
+### `build_ideation_prompt()`
+The function is ~40 lines and assembles prompts mechanically:
+- **System prompt** = `_IDENTITY_PREFIX[agent_id]` + `persona` (from agents.json)
+- **User prompt** = `domain` + `topic` + auto-assembled context from `ROUND_CONTEXT_MAP` + directive from `PHASE_DIRECTIVES` + format from `AGENT_ROLE_PROMPTS` (skipped if directive has OVERRIDE FORMAT)
 
 1. User enters topic, picks domain (crypto/military), sets round count
 2. Frontend opens WebSocket to `/ws/debate`, sends config JSON
@@ -119,10 +144,16 @@ AI Debate/
 
 ## Generation Parameters (M1 16GB optimized)
 
-Set in `stream_ollama()` in `server.py`:
-- `temperature: 1.0` -- higher creativity, more distinct agent voices
-- `num_predict: 2500` -- enough for R1 think block (~400 tokens) + full response (~1500+ tokens)
-- `num_ctx: 8192` -- full context window for long debate history in later rounds
+All `num_ctx` is 4096 (8192 causes disk swapping on M1 16GB unified memory).
+
+Per-agent token budgets via `AGENT_CFG` in `server.py`:
+- Inventor: `num_predict=800` (needs room for think block + detailed ideas)
+- Stress-Tester: `num_predict=600` (needs think block + flaw analysis)
+- Builder: `num_predict=500` (no think block, structured output)
+- Provocateur: `num_predict=400` (no think block, constraint format)
+- Verdict: `num_predict=350` (extraction format, no creativity needed)
+
+Think-block governor: `THINK_TOKEN_LIMIT=150` — after 150 tokens inside `<think>`, the governor silently eats remaining think tokens until `</think>` closes naturally.
 
 ## Grand Debate Synthesis Panel
 
@@ -139,26 +170,63 @@ Each agent card header has a small pencil icon (✎) that appears on hover. Clic
 
 The edit is disabled with a tooltip during an active debate. The full "Manage Agents" modal is still available for name/emoji/color/model changes.
 
-## What Has NOT Been Implemented Yet (from the original plan)
+### Debate Mode (DONE)
 
-### Phase 3: Custom Domains + Flexible Prompts
-- Domain is still hardcoded to crypto/military dropdown
-- Planned: `domains.json` file, `GET/POST /api/domains`, custom domain creation from UI
-- The backend prompt builders already have a fallback: `f"The domain is: {domain}."` for unknown domains
+**Backend (server.py):**
+- `VERDICT_MODEL = "mistral:7b"` — model used for judge verdict
+- `AGENT_CFG` — per-agent token budgets (replaces old `DEBATE_CFG`), used in both debate and ideation
+- `debate_stance` field added to all agent models and CRUD handlers
+- `_extract_argument_log(history, agent_name)` — builds "DO NOT REPEAT" bullet list from prior turns
+- `build_debate_prompt()` — 3-phase escalation: OPENING → CLASH (early/late) → CLOSING. Injects prior claims, opponent claims, phase directive. Smart history windowing: first 2 + last 4 turns.
+- `generate_verdict()` — streams judge verdict from mistral:7b after all rounds complete
+- WebSocket handler branches on `mode == "debate"` vs ideation
+- `agents_config` message includes `mode` and `debate_stance` per agent
 
-### Phase 4: Analysis + Transcript Export
-- No transcript saving to disk
-- No debate history
-- No export (markdown/JSON)
-- No word count, timing, or comparison stats
-- Planned: `debates/` folder, `GET /api/debates`, analysis panel in UI
+**Frontend (index.html):**
+- Mode toggle (`💡 IDEATE` / `⚔️ DEBATE`)
+- Rounds selector (4/6/8/10/12) shown in debate mode
+- Debate topic chips (5 motions) / Ideate topic chips (5 ideas) — swapped per mode
+- Stance badges (`.stance-for` green, `.stance-against` red, `.stance-wildcard` gold)
+- Verdict panel (`#verdictPanel`) with streaming support and scroll-into-view
+- Agent Manager: Debate Stance dropdown (FOR/AGAINST/WILDCARD)
 
-### Phase 5: UX/UI Polish
-- No fullscreen mode for agent cards
-- No sound notifications
-- No dark/light theme toggle
-- No agent timer (how long each agent has been generating)
-- Keyboard shortcuts ARE done (Space, Escape, N)
+### Phase 4: Transcript Storage + Export (DONE)
+
+**Backend (server.py):**
+- `TRANSCRIPTS_DIR = Path(__file__).parent / "transcripts"` (auto-created)
+- `TranscriptPayload` Pydantic model
+- `POST /api/transcript/save` — saves JSON to `transcripts/{timestamp}_{uuid}.json`
+- `GET /api/transcripts` — lists all saved transcripts with id/topic/mode/rounds/timestamp
+- `DELETE /api/transcripts/{tid}` — deletes by ID
+
+**Frontend (index.html):**
+- Export buttons on complete/stopped banners: **JSON**, **Markdown**, **Copy to Clipboard**, **Save to Server**
+- `buildTranscriptData()` — builds structured transcript with agent timers included
+- `exportTranscript('json'|'md'|'copy')` — file download or clipboard copy
+- `saveToServer()` — POSTs to `/api/transcript/save`
+- `showToast(message, type)` — 2.5s toast notification at bottom center
+
+### Phase 5: UI Polish (DONE)
+
+**Frontend (index.html):**
+- **Agent timers** — live-ticking elapsed timer on each card during generation, final time shown after
+- **Debounced rendering** — 16ms throttle on `renderAgentContent()` to prevent DOM thrashing
+- **Scroll-to-active** — camera follows the speaking agent card on `agent_start`
+- **Clickable round pips** — clicking a pip jumps all agent cards to that round
+- **localStorage persistence** — topic, domain, mode restored on page reload
+
+## What Has NOT Been Implemented Yet
+
+### Phase 3: Custom Domains
+- Domain is a free-text input (not a dropdown), works fine as-is
+- Planned optional enhancement: `domains.json` with presets, `GET/POST /api/domains`
+
+### Remaining Phase 5 Items
+- **Fullscreen agent cards** — expand a single card to fill the viewport
+- **Sound notifications** — chime when agent finishes, different tone for verdict
+- **Dark/light theme toggle**
+- **Markdown rendering** — render agent output as formatted markdown instead of plain `<br>`
+- **Past Sessions browser** — modal to browse, view, and delete saved transcripts from `GET /api/transcripts`
 
 ## Tech Stack
 
@@ -183,7 +251,8 @@ chmod +x start.sh
 **Client -> Server messages:**
 ```json
 // Initial config (first message after connect):
-{"topic": "...", "domain": "crypto", "rounds": 3}
+{"topic": "...", "domain": "crypto", "mode": "ideate", "phases": 5}
+{"topic": "...", "domain": "AI / Ethics", "mode": "debate", "rounds": 8}
 
 // During debate:
 {"action": "pause"}
@@ -194,12 +263,14 @@ chmod +x start.sh
 
 **Server -> Client message types:**
 - `status` — Generic status message
-- `agents_config` — List of agents for this debate (sent once at start)
-- `round_start` — Round began (includes round number, mode)
-- `agent_start` — Agent began generating (includes agent_id, round)
-- `token` — Streaming token (includes agent_id, token text)
-- `agent_done` — Agent finished (includes agent_id, round, skipped flag)
+- `agents_config` — List of agents for this debate (sent once at start); includes `mode`, `total_phases`, `phases` map, `debate_stance` per agent
+- `round_start` — Round began (includes round number, total, phase name)
+- `agent_start` — Agent began generating (includes agent_id, agent_name, round, phase)
+- `token` — Streaming token (includes agent_id, token text; agent_id `__verdict__` for judge)
+- `agent_done` — Agent finished (includes agent_id, round, phase, skipped flag)
 - `round_end` — Round completed
+- `verdict_start` — Judge is deliberating (debate mode only)
+- `verdict` — Final verdict text (debate mode only)
 - `debate_paused` / `debate_resumed` — Control acknowledgments
 - `debate_stopped` — Debate was manually stopped
 - `debate_complete` — All rounds finished normally
@@ -225,24 +296,4 @@ When creating agents via UI, the ID is derived from the name: lowercased, non-al
 - Values accuracy over speed
 - Wants easy agent role editing from the UI
 - Runs everything locally on own hardware (free, no API keys)
-- macOS (darwin 25.2.0)
-
-
-Remaining phases (not done yet)
-Phase 3: Custom domains (so you're not stuck with just crypto/military in the dropdown)
-Phase 4: Transcript saving, debate history, export to markdown/JSON, analysis stats
-Phase 5: UI polish (agent timers, fullscreen cards, sound notifications)
-You can feed the progress/ folder to your next chat session and it'll pick up right where we left off.
-
-What is NOT in this plan (frontend comes next)
-
-
-
-
-
-Mode toggle in control panel UI
-Scrolling turn-feed display (replaces agent card grid for turn-based
-Turn counter in controls bar (Turn 4 / 12)
-Grand Debate synthesis panel removal for turn-based mode
-
-The full transcript feed in order
+- macOS (darwin 25.2.0), M1 16GB

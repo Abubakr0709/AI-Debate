@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+import time
 import uuid
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -16,15 +17,78 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 OLLAMA_BASE = "http://localhost:11434"
 OLLAMA_URL = f"{OLLAMA_BASE}/api/generate"
 AGENTS_FILE = Path(__file__).parent / "agents.json"
+TRANSCRIPTS_DIR = Path(__file__).parent / "transcripts"
+VERDICT_MODEL = "mistral:7b"
 
-# ── Phase Configuration ───────────────────────────────────────────────
+# ── Ideation Pipeline ─────────────────────────────────────────────────
 
-PHASES = {
-    1: {"name": "DIVERGE",     "num_predict": 1200, "num_ctx": 4096},
-    2: {"name": "CHALLENGE",   "num_predict": 1200, "num_ctx": 8192},
-    3: {"name": "COMBINE",     "num_predict": 1200, "num_ctx": 8192},
-    4: {"name": "STRESS-TEST", "num_predict": 1200, "num_ctx": 8192},
-    5: {"name": "EXECUTE",     "num_predict": 1500, "num_ctx": 8192},
+IDEATION_PHASES = {
+    1: {"name": "PROVOKE",     "num_ctx": 4096},
+    2: {"name": "INVENT",      "num_ctx": 4096},
+    3: {"name": "BUILD",       "num_ctx": 4096},
+    4: {"name": "DESTROY",     "num_ctx": 4096},
+    5: {"name": "MUTATE",      "num_ctx": 4096},
+    6: {"name": "SYNTHESIZE",  "num_ctx": 4096},
+}
+
+# Per-agent token budgets (M1 16GB optimized)
+AGENT_CFG = {
+    "inventor":      {"num_predict": 800, "num_ctx": 4096},
+    "stress_tester": {"num_predict": 600, "num_ctx": 4096},
+    "builder":       {"num_predict": 500, "num_ctx": 4096},
+    "provocateur":   {"num_predict": 400, "num_ctx": 4096},
+}
+DEFAULT_AGENT_CFG = {"num_predict": 600, "num_ctx": 4096}
+VERDICT_CFG       = {"num_predict": 350, "num_ctx": 4096}
+THINK_TOKEN_LIMIT = 150
+
+# Round → which agent IDs participate
+ROUND_AGENT_MAP = {
+    1: ["provocateur"],
+    2: ["inventor"],
+    3: ["builder"],
+    4: ["stress_tester"],
+    5: ["inventor", "builder"],
+    6: ["provocateur", "inventor", "stress_tester", "builder"],
+}
+
+# ── Identity Prefixes (defence-in-depth, prepended to system prompt) ──
+
+_IDENTITY_PREFIX = {
+    "inventor": (
+        "IDENTITY: You are The Inventor and ONLY The Inventor. "
+        "Never simulate, quote, or role-play any other agent.\n"
+        "ROLE: Creative ideation — generate novel ideas with specific "
+        "mechanisms, revenue models, and contrarian angles.\n"
+        "FORMAT: Start with the required header for this round. "
+        "No preamble, no 'Sure!', no meta-commentary.\n"
+        "THINK BLOCK: Keep <think> reasoning under 150 tokens. Get to output fast.\n\n"
+    ),
+    "stress_tester": (
+        "IDENTITY: You are The Stress-Tester and ONLY The Stress-Tester. "
+        "Never simulate, quote, or role-play any other agent.\n"
+        "ROLE: Destructive analysis — find fatal flaws, cite real failures, "
+        "propose specific fixes for every flaw you identify.\n"
+        "FORMAT: Start with the required header for this round. "
+        "No preamble, no 'Sure!', no meta-commentary.\n"
+        "THINK BLOCK: Keep <think> reasoning under 150 tokens. Get to output fast.\n\n"
+    ),
+    "builder": (
+        "IDENTITY: You are The Builder and ONLY The Builder. "
+        "Never simulate, quote, or role-play any other agent.\n"
+        "ROLE: Execution planning — turn ideas into MVPs with specific "
+        "tools, timelines, costs, and go/no-go metrics.\n"
+        "FORMAT: Start with the required header for this round. "
+        "No preamble, no 'Sure!', no meta-commentary.\n\n"
+    ),
+    "provocateur": (
+        "IDENTITY: You are The Provocateur and ONLY The Provocateur. "
+        "Never simulate, quote, or role-play any other agent.\n"
+        "ROLE: Constraint injection — impose unexpected limitations and "
+        "'what-if' scenarios that force non-obvious creative directions.\n"
+        "FORMAT: Start with the required header for this round. "
+        "No preamble, no 'Sure!', no meta-commentary.\n\n"
+    ),
 }
 
 # ── Default Agents ────────────────────────────────────────────────────
@@ -37,6 +101,7 @@ DEFAULT_AGENTS = [
         "model": "r1-wild:latest",
         "color": "#ff6b35",
         "temperature": 1.2,
+        "debate_stance": "FOR",
         "persona": (
             "You are The Inventor — a relentless creative engine that finds "
             "opportunity where others see nothing. You combine technologies, "
@@ -58,6 +123,7 @@ DEFAULT_AGENTS = [
         "model": "huihui_ai/deepseek-r1-abliterated:8b-llama-distill",
         "color": "#ff3366",
         "temperature": 0.9,
+        "debate_stance": "AGAINST",
         "persona": (
             "You are The Stress-Tester — a ruthless but constructive critic "
             "who finds every fatal flaw, market risk, and hidden assumption "
@@ -79,6 +145,7 @@ DEFAULT_AGENTS = [
         "model": "mistral:7b",
         "color": "#00ff88",
         "temperature": 0.8,
+        "debate_stance": "WILDCARD",
         "persona": (
             "You are The Builder — you turn ideas into executable plans with "
             "specific tools, timelines, costs, and metrics. While others dream "
@@ -91,6 +158,26 @@ DEFAULT_AGENTS = [
             "ships. Abstract advice is worthless — you give the actual "
             "step-by-step playbook that someone can start executing tomorrow "
             "morning."
+        ),
+    },
+    {
+        "id": "provocateur",
+        "name": "The Provocateur",
+        "emoji": "🎲",
+        "model": "llama3.2:3b",
+        "color": "#a855f7",
+        "temperature": 1.4,
+        "debate_stance": "CATALYST",
+        "persona": (
+            "You are The Provocateur — a constraint injector and chaos agent "
+            "who forces creativity by imposing unexpected limitations, "
+            "absurd-but-real market angles, and 'what-if' scenarios that nobody "
+            "else would consider. You never propose safe ideas. You ask the "
+            "dangerous questions: What if this had to work without the internet? "
+            "What if the customer is a government? What if this needs to be "
+            "illegal to be profitable? You draw from edge cases, black swan "
+            "events, regulatory loopholes, and contrarian market timing. Your "
+            "job is to break the frame so others can build something truly new."
         ),
     },
 ]
@@ -113,6 +200,13 @@ def save_agents(agents: list[dict]):
 
 
 AGENTS: list[dict] = load_agents()
+
+# Auto-migrate: ensure Provocateur exists
+if not any(a.get("id") == "provocateur" for a in AGENTS):
+    _prov = next((a for a in DEFAULT_AGENTS if a["id"] == "provocateur"), None)
+    if _prov:
+        AGENTS.append(_prov.copy())
+        save_agents(AGENTS)
 
 
 # ── Model Discovery ──────────────────────────────────────────────────
@@ -150,6 +244,7 @@ class AgentUpdate(BaseModel):
     color: Optional[str] = None
     persona: Optional[str] = None
     temperature: Optional[float] = None
+    debate_stance: Optional[str] = None
 
 
 class AgentCreate(BaseModel):
@@ -159,6 +254,7 @@ class AgentCreate(BaseModel):
     color: str = "#888888"
     persona: str = "You are a creative problem solver. Be specific and actionable."
     temperature: float = 1.0
+    debate_stance: str = "WILDCARD"
 
 
 @app.get("/api/agents")
@@ -189,6 +285,7 @@ async def api_create_agent(agent: AgentCreate):
         "color": agent.color,
         "persona": agent.persona,
         "temperature": agent.temperature,
+        "debate_stance": agent.debate_stance,
     }
     AGENTS.append(new_agent)
     save_agents(AGENTS)
@@ -212,6 +309,8 @@ async def api_update_agent(agent_id: str, update: AgentUpdate):
                 agent["persona"] = update.persona
             if update.temperature is not None:
                 agent["temperature"] = update.temperature
+            if update.debate_stance is not None:
+                agent["debate_stance"] = update.debate_stance
             save_agents(AGENTS)
             return agent
     return JSONResponse(status_code=404, content={"error": "Agent not found"})
@@ -250,6 +349,8 @@ async def stream_ollama(
     clean_response = ""
     inside_think = False
     think_buffer = ""
+    think_token_count = 0
+    think_governor_active = False
 
     try:
         request_body = {
@@ -283,11 +384,31 @@ async def stream_ollama(
                         full_response += token
                         think_buffer += token
 
+                        # Think-block governor: after limit, eat until </think>
+                        if think_governor_active:
+                            close_match = THINK_CLOSE.search(think_buffer)
+                            if close_match:
+                                think_governor_active = False
+                                inside_think = False
+                                think_token_count = 0
+                                think_buffer = think_buffer[close_match.end():]
+                                if not think_buffer:
+                                    continue
+                            else:
+                                think_buffer = think_buffer[-20:]
+                                continue
+
                         while think_buffer:
                             if inside_think:
+                                think_token_count += 1
+                                if think_token_count >= THINK_TOKEN_LIMIT:
+                                    think_governor_active = True
+                                    think_buffer = think_buffer[-20:]
+                                    break
                                 close_match = THINK_CLOSE.search(think_buffer)
                                 if close_match:
                                     inside_think = False
+                                    think_token_count = 0
                                     think_buffer = think_buffer[close_match.end():]
                                 else:
                                     if len(think_buffer) > 20:
@@ -342,115 +463,468 @@ async def stream_ollama(
     return clean_response
 
 
-# ── Phase Prompt Builder ──────────────────────────────────────────────
+# ── Ideation Prompt Builder ────────────────────────────────────────────
 
-def build_phase_prompt(
-    phase: int,
+# Fixed output format per agent — never changes regardless of topic.
+# These tell each agent HOW to structure their response.
+AGENT_ROLE_PROMPTS = {
+    "provocateur": (
+        "OUTPUT FORMAT (follow exactly):\n"
+        "CONSTRAINT 1: [one-line constraint]\n"
+        "WHY IT MATTERS: [2 sentences max]\n\n"
+        "CONSTRAINT 2: [one-line constraint]\n"
+        "WHY IT MATTERS: [2 sentences max]\n\n"
+        "CONSTRAINT 3: [one-line constraint]\n"
+        "WHY IT MATTERS: [2 sentences max]\n\n"
+        "Make them specific, real, and uncomfortable. No generic 'think outside "
+        "the box' — give concrete constraints from real markets, regulations, or physics."
+    ),
+    "inventor": (
+        "OUTPUT FORMAT (follow exactly):\n"
+        "INSIGHT: [The non-obvious connection or market gap you spotted]\n"
+        "IDEA: [Punchy one-line name]\n"
+        "MECHANISM: [How it works — specific technology, platform, or process]\n"
+        "ADVANTAGE: [Why this beats what exists — name the competitor or alternative]\n"
+        "CONTRARIAN ANGLE: [What everyone else gets wrong about this space]\n\n"
+        "Be specific: name real tools, real companies, real price points."
+    ),
+    "builder": (
+        "OUTPUT FORMAT (follow exactly):\n"
+        "MVP: [What the minimum viable version looks like — 3-4 sentences]\n"
+        "TIMELINE: [Week-by-week for first 4 weeks]\n"
+        "COST: [Estimated cost to reach MVP, broken down by category]\n"
+        "STACK: [Specific tools, APIs, platforms, frameworks]\n"
+        "ASSUMPTION: [The single biggest assumption this plan depends on]\n"
+        "FIRST DOLLAR: [How and when this makes its first revenue]\n\n"
+        "No abstract advice. Every line must be actionable starting tomorrow."
+    ),
+    "stress_tester": (
+        "OUTPUT FORMAT (follow exactly for each flaw):\n"
+        "FLAW 1: [Name]\n"
+        "SOURCE: [Market, technical, economic, regulatory, or competitive]\n"
+        "EVIDENCE: [Specific data point, competitor, or historical example]\n"
+        "KILL CONDITION: [What happens if this flaw is not addressed]\n"
+        "FIX: [Specific mitigation — not 'do more research' but an actual pivot or solution]\n\n"
+        "FLAW 2: ...\n\nFLAW 3: ...\n\n"
+        "Be ruthless but constructive. Every flaw must come with a real fix."
+    ),
+}
+
+# Which prior outputs to inject as context for each (round, agent_id).
+# "*" as agent_id means "all agents in this round get the same context".
+# Each entry is a list of (agent_id, round_num) tuples to pull from all_responses.
+# Special value "ALL_PRIOR" means gather everything from rounds 1..current-1.
+ROUND_CONTEXT_MAP: dict[tuple[int, str], list] = {
+    (1, "provocateur"):   [],
+    (2, "inventor"):      [("provocateur", 1)],
+    (3, "builder"):       [("inventor", 2)],
+    (4, "stress_tester"): [("inventor", 2), ("builder", 3)],
+    (5, "inventor"):      [("provocateur", 1), ("inventor", 2), ("stress_tester", 4)],
+    (5, "builder"):       [("builder", 3), ("stress_tester", 4)],
+    (6, "*"):             "ALL_PRIOR",
+}
+
+# Agent-friendly names for context labels
+_AGENT_NAMES = {
+    "provocateur": "The Provocateur",
+    "inventor": "The Inventor",
+    "builder": "The Builder",
+    "stress_tester": "The Stress-Tester",
+}
+
+# One-line directive per (round, agent_id) — tells the agent WHAT to do
+# with the context this round. Keeps the core role prompt stable.
+PHASE_DIRECTIVES: dict[tuple[int, str], str] = {
+    # R1: PROVOKE — no prior context
+    (1, "provocateur"): (
+        "PROVOCATION ROUND — Inject constraints that force creativity. "
+        "Deliver exactly 3 provocative constraints or 'what-if' scenarios "
+        "that will push the other agents beyond the obvious."
+    ),
+    # R2: INVENT — sees provocateur constraints
+    (2, "inventor"): (
+        "INVENTION ROUND — Using the constraints above as creative fuel, "
+        "generate ONE powerful idea. Not three. ONE — your absolute best."
+    ),
+    # R3: BUILD — sees inventor's idea
+    (3, "builder"): (
+        "BUILD ROUND — Turn this idea into an executable plan."
+    ),
+    # R4: DESTROY — sees idea + build plan
+    (4, "stress_tester"): (
+        "DESTRUCTION ROUND — Find exactly 3 fatal flaws. Not nitpicks — "
+        "genuine kill shots that could sink this idea."
+    ),
+    # R5: MUTATE — inventor mutates idea, builder revises plan
+    (5, "inventor"): (
+        "MUTATION ROUND — Your original idea has been stress-tested. "
+        "Now MUTATE it: absorb the valid criticisms, keep the core insight, "
+        "and produce a stronger version.\n\n"
+        "OVERRIDE FORMAT FOR THIS ROUND:\n"
+        "WHAT SURVIVED: [Core insight that remains valid]\n"
+        "WHAT CHANGED: [How you addressed the flaws]\n"
+        "MUTATED IDEA: [Full description of the evolved concept]\n"
+        "NEW ADVANTAGE: [Why this version is harder to kill]"
+    ),
+    (5, "builder"): (
+        "REVISION ROUND — Your build plan has been stress-tested. "
+        "Revise it: fix the vulnerabilities, adjust the timeline and costs, "
+        "and produce a battle-hardened version.\n\n"
+        "OVERRIDE FORMAT FOR THIS ROUND:\n"
+        "REVISED MVP: [Updated minimum viable version]\n"
+        "REVISED TIMELINE: [Updated week-by-week]\n"
+        "REVISED COST: [Updated budget]\n"
+        "RISK MITIGATIONS: [How each identified flaw is now handled]\n"
+        "GO/NO-GO SIGNAL: [The metric at week 4 that tells you to continue or pivot]"
+    ),
+    # R6: SYNTHESIZE — each agent has a unique final job
+    (6, "provocateur"): (
+        "SYNTHESIS ROUND — Deliver your FINAL VERDICT on whether this idea "
+        "is truly novel or just a rehash. Score the novelty 1-10 and explain why. "
+        "What would make it a genuine 10?"
+    ),
+    (6, "inventor"): (
+        "SYNTHESIS ROUND — Deliver your FINAL SYNTHESIS: the definitive version "
+        "of this idea after all pressure-testing and mutation. One paragraph, "
+        "crystal clear, ready to pitch to an investor in 60 seconds."
+    ),
+    (6, "stress_tester"): (
+        "SYNTHESIS ROUND — Deliver your FINAL RISK ASSESSMENT. "
+        "After seeing the mutations and revisions, what is the remaining #1 risk? "
+        "Has this idea earned the right to be built? YES or NO, with your reason."
+    ),
+    (6, "builder"): (
+        "SYNTHESIS ROUND — Deliver your FINAL ACTION PLAN. "
+        "Exactly 5 steps, starting tomorrow, to move this from idea to reality. "
+        "Include specific tools, costs, and who does what."
+    ),
+}
+
+
+def build_ideation_prompt(
+    round_num: int,
     agent: dict,
     topic: str,
     domain: str,
-    full_history: list[tuple[str, str]],
+    all_responses: dict,
 ) -> tuple[str, str]:
-    """Returns (system_prompt, user_prompt) for the given ideation phase."""
+    """Build (system_prompt, user_prompt) using the data-driven dicts.
 
-    domain_ctx = (
-        f"The domain is: {domain}. "
-        "Think about real companies, real markets, and real technology in this space."
+    System prompt = identity prefix + agent persona (from agents.json)
+    User prompt   = domain + topic + auto-assembled context + directive + format
+    """
+    agent_id = agent.get("id", "")
+
+    # ── System prompt: identity + persona (never changes per round) ──
+    system_prompt = (
+        _IDENTITY_PREFIX.get(agent_id, "")
+        + agent.get("persona", "You are a creative problem solver.")
     )
 
-    history_text = ""
-    if full_history:
-        history_text = "\n\n".join(
-            f"[{name}]: {msg}" for name, msg in full_history if msg.strip()
-        )
+    # ── Assemble context from prior rounds ──
+    context_spec = ROUND_CONTEXT_MAP.get(
+        (round_num, agent_id),
+        ROUND_CONTEXT_MAP.get((round_num, "*"), []),
+    )
 
-    system_prompt = agent.get("persona", "You are a creative problem solver.")
+    context_parts: list[str] = []
+    if context_spec == "ALL_PRIOR":
+        for r in range(1, round_num):
+            for aid in ROUND_AGENT_MAP.get(r, []):
+                text = all_responses.get((aid, r), "")
+                if text.strip():
+                    name = _AGENT_NAMES.get(aid, aid)
+                    phase = IDEATION_PHASES.get(r, {}).get("name", f"R{r}")
+                    context_parts.append(f"[{name} — {phase}]:\n{text}")
+    elif isinstance(context_spec, list):
+        for aid, r in context_spec:
+            text = all_responses.get((aid, r), "")
+            if text.strip():
+                name = _AGENT_NAMES.get(aid, aid)
+                phase = IDEATION_PHASES.get(r, {}).get("name", f"R{r}")
+                context_parts.append(f"[{name} — {phase}]:\n{text}")
 
-    if phase == 1:  # ── DIVERGE ──
-        user_prompt = (
-            f"{domain_ctx}\n\n"
-            f"Topic: {topic}\n\n"
-            "BRAINSTORM PHASE — Generate exactly 3 specific, actionable ideas "
-            "related to this topic. For each idea:\n"
-            "• Give it a punchy one-line name\n"
-            "• Explain the core mechanism — how does it make money or solve the problem?\n"
-            "• Name one existing tool, technology, or market trend it leverages\n"
-            "• Estimate the realistic revenue potential or impact\n\n"
-            "Be specific and unconventional. The best ideas combine things nobody "
-            "has connected yet. No generic advice — every idea must be something "
-            "someone could start building this week."
-        )
+    context_block = ""
+    if context_parts:
+        context_block = "CONTEXT:\n" + "\n\n".join(context_parts) + "\n\n"
 
-    elif phase == 2:  # ── CHALLENGE ──
-        user_prompt = (
-            f"{domain_ctx}\n\n"
-            f"Topic: {topic}\n\n"
-            f"IDEAS PROPOSED SO FAR:\n{history_text}\n\n"
-            "CHALLENGE PHASE — Review every idea above. For each one:\n"
-            "1. Name the specific flaw, fatal assumption, or market risk\n"
-            "2. Propose a concrete fix, pivot, or mitigation that saves the core insight\n\n"
-            "Then identify which single idea has the highest real-world potential "
-            "and explain WHY — what makes it more viable than the others?\n"
-            "Never just kill ideas — evolve them through pressure."
-        )
+    # ── Directive: what to do this round ──
+    directive = PHASE_DIRECTIVES.get(
+        (round_num, agent_id),
+        PHASE_DIRECTIVES.get((round_num, "*"), "Continue building on the discussion."),
+    )
 
-    elif phase == 3:  # ── COMBINE ──
-        user_prompt = (
-            f"{domain_ctx}\n\n"
-            f"Topic: {topic}\n\n"
-            f"FULL DISCUSSION SO FAR:\n{history_text}\n\n"
-            "COMBINATION PHASE — Create ONE powerful hybrid idea that fuses the "
-            "strongest elements from at least 2 different proposals discussed above. "
-            "Explain:\n"
-            "• What specific elements you're combining and why they reinforce each other\n"
-            "• The revenue model or value creation mechanism\n"
-            "• What makes this combination non-obvious — why hasn't someone done this already?\n"
-            "• One specific real-world example or analogy that validates this approach\n\n"
-            "This must be a genuinely new concept, not just a feature list."
-        )
+    # ── Role format: default output structure (skipped if directive has OVERRIDE FORMAT) ──
+    role_format = ""
+    if "OVERRIDE FORMAT" not in directive:
+        role_format = "\n\n" + AGENT_ROLE_PROMPTS.get(agent_id, "")
 
-    elif phase == 4:  # ── STRESS-TEST ──
-        user_prompt = (
-            f"{domain_ctx}\n\n"
-            f"Topic: {topic}\n\n"
-            f"FULL DISCUSSION SO FAR:\n{history_text}\n\n"
-            "STRESS-TEST PHASE — Take the most promising idea from this discussion "
-            "and pressure-test it:\n"
-            "• Market size: How big is this opportunity? Name specific numbers or comparable markets.\n"
-            "• Competition: Who is closest to doing this? What's your specific edge over them?\n"
-            "• Feasibility: What does a minimum viable version require? Time, cost, skills, tools.\n"
-            "• Unit economics: What does one customer/unit cost to acquire vs revenue generated?\n"
-            "• Kill shot: What's the single most likely reason this fails, and how do you mitigate it?\n\n"
-            "Be brutally honest but constructive. If it survives this test, it's worth building."
-        )
+    # ── Build final user prompt ──
+    domain_ctx = (
+        f"Domain: {domain}. "
+        "Ground every claim in real companies, real markets, real technology."
+    )
 
-    elif phase == 5:  # ── EXECUTE ──
-        user_prompt = (
-            f"{domain_ctx}\n\n"
-            f"Topic: {topic}\n\n"
-            f"FULL DISCUSSION SO FAR:\n{history_text}\n\n"
-            "EXECUTION PHASE — Write a concrete action plan for the strongest idea "
-            "from this discussion:\n"
-            "• THIS WEEK: 3 specific actions to take, tools to set up, or research to complete\n"
-            "• MONTH 1: First milestone, success metric, and estimated cost to reach it\n"
-            "• MONTH 3: Scale trigger — what metric tells you this is working?\n"
-            "• TOOLS & STACK: Name specific platforms, APIs, frameworks, or services to use\n"
-            "• FIRST DOLLAR: How specifically does this make its first revenue?\n\n"
-            "No abstract advice. Every sentence must be an action someone can take "
-            "starting tomorrow."
-        )
-
-    else:  # ── Extra rounds beyond 5 ──
-        user_prompt = (
-            f"{domain_ctx}\n\n"
-            f"Topic: {topic}\n\n"
-            f"DISCUSSION SO FAR:\n{history_text}\n\n"
-            "Continue building on the strongest ideas from this discussion. "
-            "Add new angles, deeper analysis, or refined execution details. "
-            "Be specific and actionable."
-        )
+    user_prompt = (
+        f"{domain_ctx}\n\n"
+        f"Topic: {topic}\n\n"
+        f"{context_block}"
+        f"{directive}"
+        f"{role_format}"
+    )
 
     return system_prompt, user_prompt
+
+
+# ── Debate Prompt Builder ─────────────────────────────────────────────
+
+def _extract_argument_log(history: list[tuple[str, str]], agent_name: str) -> str:
+    """Build a bullet list of claims already made, so the model can avoid repeating them."""
+    own_points: list[str] = []
+    other_points: list[str] = []
+    for name, text in history:
+        if not text.strip():
+            continue
+        # Take first 120 chars as a summary of the argument's core claim
+        summary = text.strip().replace("\n", " ")[:120]
+        if name == agent_name:
+            own_points.append(summary)
+        else:
+            other_points.append(f"{name}: {summary}")
+    lines: list[str] = []
+    if own_points:
+        lines.append("YOUR PREVIOUS ARGUMENTS (DO NOT REPEAT THESE — escalate, deepen, or pivot):")
+        for p in own_points[-4:]:
+            lines.append(f"  • {p}")
+    if other_points:
+        lines.append("OPPONENTS' RECENT CLAIMS (address these directly):")
+        for p in other_points[-4:]:
+            lines.append(f"  • {p}")
+    return "\n".join(lines)
+
+
+def build_debate_prompt(
+    agent: dict,
+    motion: str,
+    domain: str,
+    round_num: int,
+    total_rounds: int,
+    prev_speaker_name: str,
+    prev_speaker_text: str,
+    full_history: list[tuple[str, str]],
+) -> tuple[str, str]:
+    """Returns (system_prompt, user_prompt) for a debate turn.
+
+    Uses 3-phase escalation:
+      OPENING  (round 1)           — establish position
+      CLASH    (rounds 2 to N-1)   — engage, counter, deepen
+      CLOSING  (final round)       — strongest closing argument
+    """
+    stance = agent.get("debate_stance", "WILDCARD")
+    persona = agent.get("persona", "You are a sharp debater.")
+    agent_name = agent.get("name", "Agent")
+
+    stance_instruction = {
+        "FOR": "You SUPPORT this motion. Build the strongest possible case FOR it.",
+        "AGAINST": "You OPPOSE this motion. Build the strongest possible case AGAINST it.",
+        "WILDCARD": "You are the WILDCARD. You may agree, disagree, redirect, or introduce a completely unexpected angle.",
+    }.get(stance, "Debate freely.")
+
+    # ── Determine debate phase ────────────────────────────────
+    if round_num == 1:
+        phase = "OPENING"
+        phase_directive = (
+            "This is your OPENING STATEMENT. Present your position clearly and powerfully. "
+            "Lay out your 2-3 strongest arguments with concrete evidence. Set the tone."
+        )
+    elif round_num >= total_rounds:
+        phase = "CLOSING"
+        phase_directive = (
+            "This is your CLOSING ARGUMENT — your final chance to persuade. "
+            "Synthesize your strongest points, demolish the opposition's weakest claim, "
+            "and end with a powerful conclusion. No new evidence — drive it home."
+        )
+    else:
+        phase = "CLASH"
+        progress = round_num / total_rounds
+        if progress < 0.5:
+            phase_directive = (
+                "CLASH PHASE — Directly engage with opponents' arguments. "
+                "Pick apart their weakest claim with specific counter-evidence. "
+                "Introduce ONE new angle or piece of evidence they haven't addressed."
+            )
+        else:
+            phase_directive = (
+                "LATE CLASH — The debate is heating up. Go deeper, not wider. "
+                "Find the fundamental assumption behind an opponent's argument and attack it. "
+                "Use analogies, data, or real-world examples they can't easily dismiss. "
+                "Concede a minor point if it strengthens your core position."
+            )
+
+    # ── System prompt ─────────────────────────────────────────
+    system_prompt = (
+        f"{_IDENTITY_PREFIX.get(agent.get('id', ''), '')}"
+        f"{persona}\n\n"
+        f"DEBATE STANCE: {stance}\n"
+        f"{stance_instruction}\n\n"
+        f"PHASE: {phase} (Round {round_num}/{total_rounds})\n"
+        f"{phase_directive}\n\n"
+        "CRITICAL RULES:\n"
+        "• 3-5 sentences maximum. Dense, specific, no filler.\n"
+        "• NEVER repeat an argument you already made — escalate or pivot.\n"
+        "• NEVER restate the motion — go straight to your argument.\n"
+        "• Name specific evidence: real companies, data points, historical examples.\n"
+        "• If you catch yourself agreeing with everyone, find the contrarian angle."
+    )
+
+    # ── User prompt ───────────────────────────────────────────
+    if round_num == 1 and not prev_speaker_text:
+        user_prompt = (
+            f"Domain: {domain}\n\n"
+            f"THE MOTION: \"{motion}\"\n\n"
+            "Deliver your opening statement."
+        )
+    else:
+        # Smart history window: first 2 turns (context) + last 4 turns (recency)
+        if len(full_history) > 6:
+            window = full_history[:2] + full_history[-4:]
+        else:
+            window = full_history[:]
+
+        history_text = "\n\n".join(
+            f"[{name}]: {msg}" for name, msg in window if msg.strip()
+        )
+
+        arg_log = _extract_argument_log(full_history, agent_name)
+
+        user_prompt = (
+            f"Domain: {domain}\n\n"
+            f"THE MOTION: \"{motion}\"\n\n"
+            f"Round {round_num} of {total_rounds}.\n\n"
+        )
+
+        if history_text:
+            user_prompt += f"DEBATE HISTORY:\n{history_text}\n\n"
+
+        if arg_log:
+            user_prompt += f"{arg_log}\n\n"
+
+        if prev_speaker_text:
+            user_prompt += (
+                f"LAST SPEAKER ({prev_speaker_name}):\n"
+                f"\"{prev_speaker_text[:300]}\"\n\n"
+            )
+
+        user_prompt += "Your response:"
+
+    return system_prompt, user_prompt
+
+
+async def generate_verdict(
+    motion: str,
+    full_transcript: list[tuple[str, str, str]],
+    ws: WebSocket,
+    cancel_event: asyncio.Event,
+) -> str:
+    """Generate a verdict by streaming from the judge model.
+    full_transcript is list of (agent_name, stance, text)."""
+
+    transcript_text = "\n\n".join(
+        f"[{name} ({stance})]: {text}"
+        for name, stance, text in full_transcript
+        if text.strip()
+    )
+
+    system_prompt = (
+        "You are a neutral, expert debate judge. You evaluate arguments based on "
+        "logical rigor, evidence quality, rhetorical effectiveness, and practical insight. "
+        "You are fair but decisive."
+    )
+
+    user_prompt = (
+        f"THE MOTION: \"{motion}\"\n\n"
+        f"FULL DEBATE TRANSCRIPT:\n{transcript_text}\n\n"
+        "DELIVER YOUR VERDICT:\n"
+        "1. Who made the strongest overall case and why? (Name the agent)\n"
+        "2. What was the single most compelling argument made by anyone?\n"
+        "3. What was the weakest argument or biggest logical flaw?\n"
+        "4. Your final ruling: Does the motion STAND or FALL based on this debate?\n\n"
+        "Be specific. Reference exact arguments. 1-2 paragraphs."
+    )
+
+    verdict_text = await stream_ollama(
+        VERDICT_MODEL,
+        user_prompt,
+        ws,
+        "__verdict__",
+        cancel_event,
+        system_prompt=system_prompt,
+        temperature=0.7,
+        num_predict=VERDICT_CFG["num_predict"],
+        num_ctx=VERDICT_CFG["num_ctx"],
+    )
+
+    return verdict_text
+
+
+async def generate_ideation_verdict(
+    topic: str,
+    domain: str,
+    all_responses: dict,
+    ws: WebSocket,
+    cancel_event: asyncio.Event,
+) -> str:
+    """Generate a venture analyst brief for the ideation pipeline."""
+    agent_names = {
+        "provocateur": "The Provocateur",
+        "inventor": "The Inventor",
+        "builder": "The Builder",
+        "stress_tester": "The Stress-Tester",
+    }
+    parts = []
+    for r in range(1, 7):
+        phase_name = IDEATION_PHASES.get(r, {}).get("name", f"R{r}")
+        for aid in ROUND_AGENT_MAP.get(r, []):
+            text = all_responses.get((aid, r), "")
+            if text.strip():
+                name = agent_names.get(aid, aid)
+                parts.append(f"[{name} — {phase_name}]:\n{text}")
+
+    transcript_text = "\n\n".join(parts)
+
+    system_prompt = (
+        "You are a signal extraction analyst. Your job is to extract and structure "
+        "the key findings from the ideation pipeline into a standardized brief. "
+        "Do not invent new ideas — extract what the agents produced. "
+        "Be precise, be cold, omit nothing material."
+    )
+
+    user_prompt = (
+        f"Topic: {topic}\nDomain: {domain}\n\n"
+        f"FULL IDEATION PIPELINE OUTPUT:\n{transcript_text}\n\n"
+        "EXTRACT into this exact format (no extra commentary):\n\n"
+        "IDEA NAME: [extract the core idea name from the pipeline]\n"
+        "WHAT IT IS: [2 sentences max — what the agents converged on]\n"
+        "MECHANISM: [how it works technically — extract from Inventor + Builder]\n"
+        "REVENUE MODEL: [how it makes money — extract from Inventor]\n"
+        "BUILD COST: [extract from Builder's estimate]\n"
+        "TIME TO REVENUE: [extract from Builder's timeline]\n"
+        "FATAL RISK: [extract the #1 surviving risk from Stress-Tester]\n"
+        "VERDICT: BUILD IT / PIVOT / KILL IT\n"
+        "REASON: [2-3 sentences synthesizing the pipeline's conclusion]\n"
+    )
+
+    return await stream_ollama(
+        VERDICT_MODEL,
+        user_prompt,
+        ws,
+        "__verdict__",
+        cancel_event,
+        system_prompt=system_prompt,
+        temperature=0.6,
+        num_predict=VERDICT_CFG["num_predict"],
+        num_ctx=VERDICT_CFG["num_ctx"],
+    )
 
 
 # ── Debate WebSocket ──────────────────────────────────────────────────
@@ -493,25 +967,30 @@ async def debate_websocket(websocket: WebSocket):
         config = await websocket.receive_json()
         topic = config.get("topic", "")
         domain = config.get("domain", "general")
+        mode = config.get("mode", "ideate")
         num_phases = max(1, min(config.get("phases", 5), 7))
+        num_debate_rounds = max(1, min(config.get("rounds", 8), 20))
 
         active_agents = AGENTS[:]
 
         await websocket.send_json({
             "type": "status",
-            "message": f"Starting ideation on: {topic}",
+            "message": f"Starting {'debate' if mode == 'debate' else 'ideation'} on: {topic}",
         })
 
         # Build phase map for frontend
-        phase_map = {}
-        for i in range(1, num_phases + 1):
-            if i in PHASES:
-                phase_map[str(i)] = PHASES[i]["name"]
-            else:
-                phase_map[str(i)] = f"ROUND {i}"
+        if mode == "debate":
+            total_rounds_to_send = num_debate_rounds
+            phase_map = {}
+            for i in range(1, num_debate_rounds + 1):
+                phase_map[str(i)] = f"R{i}"
+        else:
+            total_rounds_to_send = 6
+            phase_map = {str(i): IDEATION_PHASES[i]["name"] for i in range(1, 7)}
 
-        await websocket.send_json({
+        config_msg = {
             "type": "agents_config",
+            "mode": mode,
             "agents": [
                 {
                     "id": a["id"],
@@ -519,40 +998,28 @@ async def debate_websocket(websocket: WebSocket):
                     "emoji": a["emoji"],
                     "color": a["color"],
                     "model": a.get("model", ""),
+                    "debate_stance": a.get("debate_stance", "WILDCARD"),
                 }
                 for a in active_agents
             ],
-            "total_phases": num_phases,
+            "total_phases": total_rounds_to_send,
             "phases": phase_map,
-        })
+        }
+        if mode != "debate":
+            config_msg["round_agents"] = {str(k): v for k, v in ROUND_AGENT_MAP.items()}
+
+        await websocket.send_json(config_msg)
 
         listener_task = asyncio.create_task(listen_for_controls())
 
-        # ── 5-Phase Ideation Loop ─────────────────────────────────
-        all_responses: list[tuple[str, str]] = []
+        if mode == "debate":
+            # ── Debate Mode Loop ──────────────────────────────────
+            all_debate_history: list[tuple[str, str]] = []
+            all_debate_transcript: list[tuple[str, str, str]] = []  # (name, stance, text)
+            prev_speaker_name = ""
+            prev_speaker_text = ""
 
-        for phase_num in range(1, num_phases + 1):
-            if debate_stopped:
-                break
-
-            while pause_event.is_set() and not debate_stopped:
-                await asyncio.sleep(0.2)
-
-            if debate_stopped:
-                break
-
-            phase_cfg = PHASES.get(phase_num, PHASES[5])
-
-            await websocket.send_json({
-                "type": "round_start",
-                "round": phase_num,
-                "total": num_phases,
-                "phase": phase_cfg["name"],
-            })
-
-            round_responses: list[tuple[str, str]] = []
-
-            for agent in active_agents:
+            for round_num in range(1, num_debate_rounds + 1):
                 if debate_stopped:
                     break
 
@@ -562,59 +1029,205 @@ async def debate_websocket(websocket: WebSocket):
                 if debate_stopped:
                     break
 
+                await websocket.send_json({
+                    "type": "round_start",
+                    "round": round_num,
+                    "total": num_debate_rounds,
+                    "phase": f"R{round_num}",
+                })
+
+                for agent in active_agents:
+                    if debate_stopped:
+                        break
+
+                    while pause_event.is_set() and not debate_stopped:
+                        await asyncio.sleep(0.2)
+
+                    if debate_stopped:
+                        break
+
+                    cancel_event.clear()
+                    skip_event.clear()
+
+                    await websocket.send_json({
+                        "type": "agent_start",
+                        "agent_id": agent["id"],
+                        "agent_name": agent["name"],
+                        "round": round_num,
+                        "phase": f"R{round_num}",
+                    })
+
+                    system_prompt, user_prompt = build_debate_prompt(
+                        agent, topic, domain,
+                        round_num, num_debate_rounds,
+                        prev_speaker_name, prev_speaker_text,
+                        all_debate_history,
+                    )
+
+                    agent_temp = agent.get("temperature", 1.0)
+                    cfg = AGENT_CFG.get(agent["id"], DEFAULT_AGENT_CFG)
+
+                    response = await stream_ollama(
+                        agent["model"],
+                        user_prompt,
+                        websocket,
+                        agent["id"],
+                        cancel_event,
+                        system_prompt=system_prompt,
+                        temperature=agent_temp,
+                        num_predict=cfg["num_predict"],
+                        num_ctx=cfg["num_ctx"],
+                    )
+
+                    skipped = skip_event.is_set()
+                    stance = agent.get("debate_stance", "WILDCARD")
+
+                    all_debate_history.append((agent["name"], response))
+                    all_debate_transcript.append((agent["name"], stance, response))
+
+                    prev_speaker_name = agent["name"]
+                    prev_speaker_text = response
+
+                    await websocket.send_json({
+                        "type": "agent_done",
+                        "agent_id": agent["id"],
+                        "round": round_num,
+                        "phase": f"R{round_num}",
+                        "skipped": skipped,
+                    })
+
+                    await asyncio.sleep(0.3)
+
+                if not debate_stopped:
+                    await websocket.send_json({
+                        "type": "round_end",
+                        "round": round_num,
+                    })
+
+            # ── Verdict ───────────────────────────────────────────
+            if not debate_stopped and all_debate_transcript:
+                await websocket.send_json({
+                    "type": "verdict_start",
+                    "message": "The judge is deliberating...",
+                })
+
                 cancel_event.clear()
-                skip_event.clear()
-
-                await websocket.send_json({
-                    "type": "agent_start",
-                    "agent_id": agent["id"],
-                    "agent_name": agent["name"],
-                    "round": phase_num,
-                    "phase": phase_cfg["name"],
-                })
-
-                # Build prompts — full history passed for cumulative context
-                system_prompt, user_prompt = build_phase_prompt(
-                    phase_num, agent, topic, domain, all_responses
+                verdict = await generate_verdict(
+                    topic, all_debate_transcript, websocket, cancel_event,
                 )
 
-                agent_temp = agent.get("temperature", 1.0)
-
-                response = await stream_ollama(
-                    agent["model"],
-                    user_prompt,
-                    websocket,
-                    agent["id"],
-                    cancel_event,
-                    system_prompt=system_prompt,
-                    temperature=agent_temp,
-                    num_predict=phase_cfg["num_predict"],
-                    num_ctx=phase_cfg["num_ctx"],
-                )
-
-                skipped = skip_event.is_set()
-                round_responses.append((agent["name"], response))
-
                 await websocket.send_json({
-                    "type": "agent_done",
-                    "agent_id": agent["id"],
-                    "round": phase_num,
-                    "phase": phase_cfg["name"],
-                    "skipped": skipped,
+                    "type": "verdict",
+                    "text": verdict,
                 })
-
-                await asyncio.sleep(0.3)
-
-            all_responses.extend(round_responses)
 
             if not debate_stopped:
+                await websocket.send_json({"type": "debate_complete"})
+
+        else:
+            # ── 6-Phase Directed Ideation Pipeline ────────────────────
+            all_responses: dict[tuple[str, int], str] = {}
+
+            for phase_num in range(1, 7):
+                if debate_stopped:
+                    break
+
+                while pause_event.is_set() and not debate_stopped:
+                    await asyncio.sleep(0.2)
+
+                if debate_stopped:
+                    break
+
+                phase_cfg = IDEATION_PHASES.get(phase_num, IDEATION_PHASES[6])
+                round_agent_ids = ROUND_AGENT_MAP.get(phase_num, [a["id"] for a in active_agents])
+                round_agents = [a for a in active_agents if a["id"] in round_agent_ids]
+
                 await websocket.send_json({
-                    "type": "round_end",
+                    "type": "round_start",
                     "round": phase_num,
+                    "total": 6,
+                    "phase": phase_cfg["name"],
+                    "active_agents": [a["id"] for a in round_agents],
                 })
 
-        if not debate_stopped:
-            await websocket.send_json({"type": "debate_complete"})
+                for agent in round_agents:
+                    if debate_stopped:
+                        break
+
+                    while pause_event.is_set() and not debate_stopped:
+                        await asyncio.sleep(0.2)
+
+                    if debate_stopped:
+                        break
+
+                    cancel_event.clear()
+                    skip_event.clear()
+
+                    await websocket.send_json({
+                        "type": "agent_start",
+                        "agent_id": agent["id"],
+                        "agent_name": agent["name"],
+                        "round": phase_num,
+                        "phase": phase_cfg["name"],
+                    })
+
+                    system_prompt, user_prompt = build_ideation_prompt(
+                        phase_num, agent, topic, domain, all_responses
+                    )
+
+                    agent_temp = agent.get("temperature", 1.0)
+                    agent_cfg = AGENT_CFG.get(agent["id"], DEFAULT_AGENT_CFG)
+
+                    response = await stream_ollama(
+                        agent["model"],
+                        user_prompt,
+                        websocket,
+                        agent["id"],
+                        cancel_event,
+                        system_prompt=system_prompt,
+                        temperature=agent_temp,
+                        num_predict=agent_cfg["num_predict"],
+                        num_ctx=phase_cfg["num_ctx"],
+                    )
+
+                    skipped = skip_event.is_set()
+                    all_responses[(agent["id"], phase_num)] = response
+
+                    await websocket.send_json({
+                        "type": "agent_done",
+                        "agent_id": agent["id"],
+                        "round": phase_num,
+                        "phase": phase_cfg["name"],
+                        "skipped": skipped,
+                    })
+
+                    await asyncio.sleep(0.3)
+
+                if not debate_stopped:
+                    await websocket.send_json({
+                        "type": "round_end",
+                        "round": phase_num,
+                    })
+
+            # ── Ideation Verdict ──────────────────────────────────
+            if not debate_stopped and all_responses:
+                await websocket.send_json({
+                    "type": "verdict_start",
+                    "message": "The venture analyst is evaluating...",
+                })
+
+                cancel_event.clear()
+                verdict = await generate_ideation_verdict(
+                    topic, domain, all_responses, websocket, cancel_event,
+                )
+
+                await websocket.send_json({
+                    "type": "verdict",
+                    "text": verdict,
+                })
+
+            if not debate_stopped:
+                await websocket.send_json({"type": "debate_complete"})
 
         listener_task.cancel()
 
@@ -625,6 +1238,60 @@ async def debate_websocket(websocket: WebSocket):
             await websocket.send_json({"type": "error", "message": str(e)})
         except Exception:
             pass
+
+
+# ── Transcript Storage ────────────────────────────────────────────────
+
+TRANSCRIPTS_DIR.mkdir(exist_ok=True)
+
+
+class TranscriptPayload(BaseModel):
+    topic: str
+    domain: str
+    mode: str
+    rounds: int
+    agents: list[dict]
+    entries: list[dict]
+    verdict: Optional[str] = None
+    timestamp: Optional[float] = None
+
+
+@app.post("/api/transcript/save")
+async def save_transcript(payload: TranscriptPayload):
+    tid = f"{int(time.time())}_{uuid.uuid4().hex[:6]}"
+    data = payload.dict()
+    data["id"] = tid
+    data["timestamp"] = data.get("timestamp") or time.time()
+    fpath = TRANSCRIPTS_DIR / f"{tid}.json"
+    fpath.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    return {"ok": True, "id": tid}
+
+
+@app.get("/api/transcripts")
+async def list_transcripts():
+    results = []
+    for f in sorted(TRANSCRIPTS_DIR.glob("*.json"), reverse=True):
+        try:
+            d = json.loads(f.read_text())
+            results.append({
+                "id": d.get("id", f.stem),
+                "topic": d.get("topic", ""),
+                "mode": d.get("mode", ""),
+                "rounds": d.get("rounds", 0),
+                "timestamp": d.get("timestamp", 0),
+            })
+        except Exception:
+            pass
+    return results
+
+
+@app.delete("/api/transcripts/{tid}")
+async def delete_transcript(tid: str):
+    fpath = TRANSCRIPTS_DIR / f"{tid}.json"
+    if fpath.exists():
+        fpath.unlink()
+        return {"ok": True}
+    return JSONResponse(status_code=404, content={"error": "Not found"})
 
 
 # ── Serve UI ──────────────────────────────────────────────────────────

@@ -18,6 +18,7 @@
     --red: #ff3366;
     --blue: #00d4ff;
     --orange: #ff6b35;
+    --purple: #a855f7;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -149,7 +150,7 @@
     padding: 28px;
     margin-bottom: 28px;
     display: grid;
-    grid-template-columns: 1fr 240px auto;
+    grid-template-columns: 1fr 200px auto auto;
     gap: 16px;
     align-items: end;
   }
@@ -278,11 +279,12 @@
     border: 1px solid var(--border);
     color: var(--muted);
   }
-  .round-mode.phase-diverge { color: var(--blue); border-color: rgba(0,212,255,0.3); }
-  .round-mode.phase-challenge { color: var(--red); border-color: rgba(255,51,102,0.3); }
-  .round-mode.phase-combine { color: var(--gold); border-color: rgba(255,215,0,0.3); }
-  .round-mode.phase-stress-test { color: var(--orange); border-color: rgba(255,107,53,0.3); }
-  .round-mode.phase-execute { color: var(--green); border-color: rgba(0,255,136,0.3); }
+  .round-mode.phase-provoke { color: var(--purple); border-color: rgba(168,85,247,0.3); }
+  .round-mode.phase-invent { color: var(--blue); border-color: rgba(0,212,255,0.3); }
+  .round-mode.phase-build { color: var(--green); border-color: rgba(0,255,136,0.3); }
+  .round-mode.phase-destroy { color: var(--red); border-color: rgba(255,51,102,0.3); }
+  .round-mode.phase-mutate { color: var(--orange); border-color: rgba(255,107,53,0.3); }
+  .round-mode.phase-synthesize { color: var(--gold); border-color: rgba(255,215,0,0.3); }
 
   /* ── Agent Grid ──────────────────────────────────────────── */
   .arena {
@@ -358,6 +360,9 @@
   }
   .round-tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
   .round-tab.active-tab { color: var(--text); border-bottom-color: var(--tab-color, var(--orange)); }
+  .round-tab.observing { opacity: 0.3; cursor: default; font-style: italic; pointer-events: none; }
+  .round-tab.observing::after { content: ' 👁'; font-size: 8px; }
+  .round-tab.has-data { pointer-events: auto; cursor: pointer; opacity: 1; }
 
   .agent-content {
     padding: 20px;
@@ -730,11 +735,12 @@
     font-size: 10px; padding: 3px 10px;
     border-radius: 100px;
   }
-  .synth-mode-badge.diverge { color: var(--blue); border: 1px solid rgba(0,212,255,0.3); }
-  .synth-mode-badge.challenge { color: var(--red); border: 1px solid rgba(255,51,102,0.3); }
-  .synth-mode-badge.combine { color: var(--gold); border: 1px solid rgba(255,215,0,0.3); }
-  .synth-mode-badge.stress-test { color: var(--orange); border: 1px solid rgba(255,107,53,0.3); }
-  .synth-mode-badge.execute { color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+  .synth-mode-badge.provoke { color: var(--purple); border: 1px solid rgba(168,85,247,0.3); }
+  .synth-mode-badge.invent { color: var(--blue); border: 1px solid rgba(0,212,255,0.3); }
+  .synth-mode-badge.build { color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+  .synth-mode-badge.destroy { color: var(--red); border: 1px solid rgba(255,51,102,0.3); }
+  .synth-mode-badge.mutate { color: var(--orange); border: 1px solid rgba(255,107,53,0.3); }
+  .synth-mode-badge.synthesize { color: var(--gold); border: 1px solid rgba(255,215,0,0.3); }
 
   .synth-entry {
     padding: 20px 24px;
@@ -761,6 +767,166 @@
     font-size: 14px; line-height: 1.8;
     color: rgba(232,232,240,0.88);
   }
+
+  /* ── Mode Toggle ─────────────────────────────────────────── */
+  .mode-toggle {
+    display: flex; gap: 0;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    width: fit-content;
+  }
+  .mode-btn {
+    padding: 10px 24px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .mode-btn:hover { color: var(--text); }
+  .mode-btn.active-mode {
+    background: linear-gradient(135deg, rgba(255,107,53,0.15), rgba(255,107,53,0.05));
+    color: var(--orange);
+    font-weight: 700;
+  }
+  .mode-btn.active-mode.debate-active {
+    background: linear-gradient(135deg, rgba(255,51,102,0.15), rgba(255,51,102,0.05));
+    color: var(--red);
+  }
+
+  /* ── Stance Badges ───────────────────────────────────────── */
+  .stance-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; letter-spacing: 1px;
+    font-weight: 700; margin-top: 3px;
+  }
+  .stance-for { color: #00ff88; border: 1px solid rgba(0,255,136,0.35); background: rgba(0,255,136,0.06); }
+  .stance-against { color: #ff3366; border: 1px solid rgba(255,51,102,0.35); background: rgba(255,51,102,0.06); }
+  .stance-wildcard { color: #ffd700; border: 1px solid rgba(255,215,0,0.35); background: rgba(255,215,0,0.06); }
+  .stance-catalyst { color: #a855f7; border: 1px solid rgba(168,85,247,0.35); background: rgba(168,85,247,0.06); }
+
+  /* ── Verdict Panel ───────────────────────────────────────── */
+  .verdict-panel {
+    margin-top: 24px;
+    background: var(--bg2);
+    border: 1px solid rgba(255,215,0,0.2);
+    border-radius: 16px;
+    overflow: hidden;
+    animation: fade-up 0.4s ease;
+  }
+  .verdict-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 24px;
+    background: linear-gradient(135deg, rgba(255,215,0,0.06), rgba(255,107,53,0.03));
+    border-bottom: 1px solid rgba(255,215,0,0.15);
+  }
+  .verdict-header h3 {
+    font-size: 13px; font-weight: 800;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold);
+  }
+  .verdict-gavel { font-size: 22px; }
+  .verdict-body {
+    padding: 24px;
+    font-size: 14px; line-height: 1.9;
+    color: rgba(232,232,240,0.92);
+  }
+  .verdict-streaming {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; color: var(--gold);
+    padding: 20px 24px; letter-spacing: 1px;
+  }
+
+  /* ── Rounds Selector ─────────────────────────────────────── */
+  .rounds-selector {
+    display: none;
+    align-items: center; gap: 8px;
+  }
+  .rounds-selector.visible { display: flex; }
+  .rounds-selector select {
+    width: 70px; padding: 8px 10px; font-size: 13px;
+  }
+
+  /* ── Debate Round Colors ─────────────────────────────────── */
+  .round-mode.phase-r1, .round-mode.phase-r2 { color: var(--blue); border-color: rgba(0,212,255,0.3); }
+  .round-mode.phase-r3, .round-mode.phase-r4 { color: var(--orange); border-color: rgba(255,107,53,0.3); }
+  .round-mode.phase-r5, .round-mode.phase-r6 { color: var(--red); border-color: rgba(255,51,102,0.3); }
+  .round-mode.phase-r7, .round-mode.phase-r8 { color: var(--gold); border-color: rgba(255,215,0,0.3); }
+
+  /* ── Export Bar ──────────────────────────────────────── */
+  .export-bar {
+    display: flex; gap: 8px; justify-content: center;
+    margin-top: 12px; flex-wrap: wrap;
+  }
+  .btn-export {
+    padding: 7px 16px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px; letter-spacing: 1px;
+    cursor: pointer; transition: all 0.15s;
+    text-transform: uppercase;
+  }
+  .btn-export:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+  .btn-export.export-json:hover { color: var(--blue); border-color: rgba(0,212,255,0.4); }
+  .btn-export.export-md:hover { color: var(--green); border-color: rgba(0,255,136,0.4); }
+  .btn-export.export-copy:hover { color: var(--gold); border-color: rgba(255,215,0,0.4); }
+  .btn-export.export-save:hover { color: var(--orange); border-color: rgba(255,107,53,0.4); }
+
+  /* ── Toast Notification ────────────────────────────── */
+  .toast {
+    position: fixed; bottom: 32px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 28px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px; letter-spacing: 1px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    z-index: 9999;
+    opacity: 0; transition: all 0.3s;
+    pointer-events: none;
+  }
+  .toast.toast-visible {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+  .toast.toast-success { border-color: rgba(0,255,136,0.3); }
+  .toast.toast-error { border-color: rgba(255,51,102,0.3); }
+
+  /* ── Agent Timer ────────────────────────────────────── */
+  .agent-timer {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; color: var(--muted);
+    letter-spacing: 1px;
+    margin-left: 8px;
+    opacity: 0.7;
+  }
+  .agent-timer.timing { color: var(--gold); opacity: 1; }
+
+  /* ── Clickable Round Pips ───────────────────────────── */
+  .round-pip { cursor: pointer; transition: all 0.3s; }
+  .round-pip:hover { transform: scale(1.4); }
+
+  /* ── Textarea topic input ──────────────────────────── */
+  textarea#topicInput {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 12px 16px;
+  }
 </style>
 </head>
 <body>
@@ -775,7 +941,7 @@
       <div class="logo-mark">AI</div>
       <div>
         <div class="logo-text">Arena</div>
-        <div class="logo-sub">Multi-Agent Ideation Engine</div>
+        <div class="logo-sub" id="logoSub">Multi-Agent Ideation Engine</div>
       </div>
     </div>
     <div class="header-actions">
@@ -787,21 +953,43 @@
     </div>
   </header>
 
+  <div class="mode-toggle">
+    <button class="mode-btn active-mode" id="modeIdeate" onclick="setMode('ideate')">💡 IDEATE</button>
+    <button class="mode-btn" id="modeDebate" onclick="setMode('debate')">⚔️ DEBATE</button>
+  </div>
+
   <div class="control-panel">
     <div class="field-group">
-      <label>Topic / Problem</label>
-      <input type="text" id="topicInput" placeholder="e.g. How to build a profitable AI-powered service with zero funding" />
-      <div class="topic-chips">
+      <label id="topicLabel">Topic / Problem</label>
+      <textarea id="topicInput" rows="1" placeholder="e.g. How to build a profitable AI-powered service with zero funding" style="resize:none;overflow:hidden;min-height:44px"></textarea>
+      <div class="topic-chips" id="ideateChips">
         <span class="chip chip-orange" onclick="setTopic('How to monetize local LLMs and open-source AI models as a solo developer', 'AI / SaaS')">Monetize Local AI</span>
         <span class="chip chip-red" onclick="setTopic('Counter-drone defense systems for civilian infrastructure protection', 'Defense Tech')">Counter-Drone Tech</span>
         <span class="chip chip-blue" onclick="setTopic('Building a crypto trading bot that profits in sideways low-volatility markets', 'Crypto / Trading')">Sideways Market Bot</span>
         <span class="chip chip-green" onclick="setTopic('Untapped business opportunities in the aging population and longevity economy', 'Healthcare / Business')">Aging Population Biz</span>
         <span class="chip chip-gold" onclick="setTopic('Automated content creation and distribution pipeline that generates passive income', 'Media / AI')">Content Pipeline</span>
       </div>
+      <div class="topic-chips" id="debateChips" style="display:none">
+        <span class="chip chip-red" onclick="setTopic('AI will replace 80% of white-collar jobs within 10 years', 'AI / Economy')">AI Job Apocalypse</span>
+        <span class="chip chip-blue" onclick="setTopic('Cryptocurrency will replace traditional banking within 20 years', 'Crypto / Finance')">Crypto vs Banks</span>
+        <span class="chip chip-orange" onclick="setTopic('Open-source AI is more dangerous than beneficial to humanity', 'AI / Ethics')">Open-Source AI Risk</span>
+        <span class="chip chip-green" onclick="setTopic('Remote work is strictly superior to office work for knowledge workers', 'Business / Culture')">Remote vs Office</span>
+        <span class="chip chip-gold" onclick="setTopic('Autonomous weapons should be banned by international treaty', 'Defense / Ethics')">Autonomous Weapons</span>
+      </div>
     </div>
     <div class="field-group">
       <label>Focus Area</label>
       <input type="text" id="domainInput" placeholder="e.g. fintech, defense, AI, crypto..." />
+    </div>
+    <div class="field-group rounds-selector" id="roundsSelector">
+      <label>Rounds</label>
+      <select id="roundsInput">
+        <option value="4">4</option>
+        <option value="6">6</option>
+        <option value="8" selected>8</option>
+        <option value="10">10</option>
+        <option value="12">12</option>
+      </select>
     </div>
     <button class="btn-start" id="startBtn" onclick="startDebate()">Ideate</button>
   </div>
@@ -810,7 +998,7 @@
     <span class="lc-label">Controls</span>
     <button class="lc-btn pause-btn" id="pauseBtn" onclick="debateAction('pause')">Pause</button>
     <button class="lc-btn skip-btn" id="skipBtn" onclick="debateAction('skip')">Skip Agent</button>
-    <button class="lc-btn stop-btn" id="stopBtn" onclick="debateAction('stop')">🌾 Harvest &amp; Stop</button>
+    <button class="lc-btn stop-btn" id="stopBtn" onclick="debateAction('stop')">🛑 Stop</button>
     <div class="lc-spacer"></div>
     <span class="lc-agent-name" id="lcAgentName"></span>
   </div>
@@ -823,7 +1011,7 @@
 
   <div class="arena-container">
     <div class="arena cols-3" id="arena">
-      <div class="empty-state">
+      <div class="empty-state" id="emptyState">
         <div class="big-icon">💡</div>
         <h2>Ideation Engine Ready</h2>
         <p>Enter a problem or opportunity. Three AI agents will brainstorm, challenge, combine, stress-test, and build an execution plan together.</p>
@@ -838,7 +1026,17 @@
     </div>
     <div id="synthesisBody"></div>
   </div>
+
+  <div id="verdictPanel" class="verdict-panel" style="display:none">
+    <div class="verdict-header">
+      <span class="verdict-gavel">⚖️</span>
+      <h3>Verdict</h3>
+    </div>
+    <div class="verdict-body" id="verdictBody"></div>
+  </div>
 </div>
+
+<div class="toast" id="toast"></div>
 
 <!-- ── Persona Quick-Edit Popover ─────────────────────────── -->
 <div class="persona-popover" id="personaPopover">
@@ -888,9 +1086,25 @@ let debatePaused = false;
 let phaseNames = {};
 let currentPhase = '';
 let debateAgents = [];
+let currentMode = 'ideate';
+let serverMode = 'ideate';
+let verdictText = '';
+let roundAgentMap = {};    // round → [agent_ids] for ideation routing
+let agentTimers = {};      // { agentId: { start, elapsed } }
+let _renderTimers = {};    // debounce timers for renderAgentContent
+let sessionStartTime = 0;  // epoch ms when debate started
+let sessionTopic = '';     // remember topic for export
 
 // ── Init ────────────────────────────────────────────────────
 async function init() {
+  // Restore last session preferences from localStorage
+  const savedTopic = localStorage.getItem('arena_topic');
+  const savedDomain = localStorage.getItem('arena_domain');
+  const savedMode = localStorage.getItem('arena_mode');
+  if (savedTopic) document.getElementById('topicInput').value = savedTopic;
+  if (savedDomain) document.getElementById('domainInput').value = savedDomain;
+  if (savedMode) setMode(savedMode);
+
   await loadAgents();
   loadModels();
 }
@@ -921,6 +1135,58 @@ async function loadModels() {
 function setTopic(topic, domain) {
   document.getElementById('topicInput').value = topic;
   document.getElementById('domainInput').value = domain;
+  localStorage.setItem('arena_topic', topic);
+  localStorage.setItem('arena_domain', domain);
+}
+
+// ── Mode Toggle ─────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  localStorage.setItem('arena_mode', mode);
+  const ideBtn = document.getElementById('modeIdeate');
+  const debBtn = document.getElementById('modeDebate');
+  const startBtn = document.getElementById('startBtn');
+  const topicLabel = document.getElementById('topicLabel');
+  const roundsSel = document.getElementById('roundsSelector');
+  const ideChips = document.getElementById('ideateChips');
+  const debChips = document.getElementById('debateChips');
+  const logoSub = document.getElementById('logoSub');
+
+  if (mode === 'debate') {
+    ideBtn.className = 'mode-btn';
+    debBtn.className = 'mode-btn active-mode debate-active';
+    startBtn.textContent = 'Debate';
+    startBtn.style.background = 'linear-gradient(135deg, #ff3366, #cc2255)';
+    topicLabel.textContent = 'Motion / Proposition';
+    roundsSel.classList.add('visible');
+    ideChips.style.display = 'none';
+    debChips.style.display = 'flex';
+    logoSub.textContent = 'Multi-Agent Debate Arena';
+    document.getElementById('topicInput').placeholder = 'e.g. AI will replace 80% of white-collar jobs within 10 years';
+    const es = document.getElementById('emptyState');
+    if (es) {
+      es.querySelector('.big-icon').textContent = '⚔️';
+      es.querySelector('h2').textContent = 'Debate Arena Ready';
+      es.querySelector('p').textContent = 'Enter a motion or proposition. Your agents will take stances and debate it across multiple rounds, then a judge delivers the verdict.';
+    }
+  } else {
+    ideBtn.className = 'mode-btn active-mode';
+    debBtn.className = 'mode-btn';
+    startBtn.textContent = 'Ideate';
+    startBtn.style.background = 'linear-gradient(135deg, #ff6b35, #e05520)';
+    topicLabel.textContent = 'Topic / Problem';
+    roundsSel.classList.remove('visible');
+    ideChips.style.display = 'flex';
+    debChips.style.display = 'none';
+    logoSub.textContent = 'Multi-Agent Ideation Engine';
+    document.getElementById('topicInput').placeholder = 'e.g. How to build a profitable AI-powered service with zero funding';
+    const es = document.getElementById('emptyState');
+    if (es) {
+      es.querySelector('.big-icon').textContent = '💡';
+      es.querySelector('h2').textContent = 'Ideation Engine Ready';
+      es.querySelector('p').textContent = 'Enter a problem or opportunity. Four AI agents will provoke, invent, build, destroy, mutate, and synthesize through a directed 6-stage pipeline.';
+    }
+  }
 }
 
 // ── Arena grid column class ─────────────────────────────────
@@ -962,13 +1228,34 @@ function renderArena(agents, rounds) {
     let tabsHtml = '';
     for (let r = 1; r <= rounds; r++) {
       const phaseName = phaseNames[String(r)] || `PHASE ${r}`;
-      tabsHtml += `<button class="round-tab ${r===1?'active-tab':''}"
-        style="--tab-color:${agent.color}"
-        data-round="${r}"
-        onclick="switchTab('${agent.id}', ${r})">P${r} &middot; ${phaseName}</button>`;
+      if (serverMode === 'debate') {
+        tabsHtml += `<button class="round-tab ${r===1?'active-tab':''}"
+          style="--tab-color:${agent.color}"
+          data-round="${r}"
+          onclick="switchTab('${agent.id}', ${r})">R${r}</button>`;
+      } else {
+        // Check if this agent participates in this round
+        const roundAgents = roundAgentMap[String(r)] || [];
+        const participates = roundAgents.length === 0 || roundAgents.includes(agent.id);
+        const obsClass = participates ? '' : ' observing';
+        const firstActive = participates && r === 1;
+        tabsHtml += `<button class="round-tab${firstActive ? ' active-tab' : ''}${obsClass}"
+          style="--tab-color:${agent.color}"
+          data-round="${r}"
+          onclick="switchTab('${agent.id}', ${r})">${phaseName}</button>`;
+      }
     }
 
     const modelShort = (agent.model || '').split('/').pop() || agent.model;
+
+    // Stance badge — show in all modes
+    let stanceBadge = '';
+    if (agent.debate_stance) {
+      const stanceLower = agent.debate_stance.toLowerCase();
+      stanceBadge = `<div class="stance-badge stance-${stanceLower}">${agent.debate_stance}</div>`;
+    }
+
+    const waitMsg = serverMode === 'debate' ? 'Waiting for debate to begin...' : 'Waiting for ideation to begin...';
 
     card.innerHTML = `
       <div class="agent-header">
@@ -976,13 +1263,15 @@ function renderArena(agents, rounds) {
         <div class="agent-info">
           <div class="agent-name" style="color:${agent.color}">${agent.name}</div>
           <div class="agent-model">${modelShort}</div>
+          ${stanceBadge}
         </div>
         <button class="card-edit-btn" onclick="openPersonaEdit('${agent.id}', this)" title="Edit persona">&#9998;</button>
+        <span class="agent-timer" id="timer-${agent.id}"></span>
         <div class="agent-indicator" id="ind-${agent.id}"></div>
       </div>
       <div class="agent-rounds" id="tabs-${agent.id}">${tabsHtml}</div>
       <div class="agent-content" id="content-${agent.id}">
-        <span class="placeholder">Waiting for ideation to begin...</span>
+        <span class="placeholder">${waitMsg}</span>
       </div>
     `;
     arena.appendChild(card);
@@ -991,6 +1280,14 @@ function renderArena(agents, rounds) {
 
 // ── Tab Switching ───────────────────────────────────────────
 function switchTab(agentId, round) {
+  // In ideation mode, check if the agent participated in this round
+  if (serverMode === 'ideate') {
+    const roundAgents = roundAgentMap[String(round)] || [];
+    const hasData = agentData[agentId] && agentData[agentId][round] && agentData[agentId][round].text;
+    if (roundAgents.length > 0 && !roundAgents.includes(agentId) && !hasData) {
+      return; // Don't switch to a round this agent doesn't participate in
+    }
+  }
   activeTab[agentId] = round;
   const tabsEl = document.getElementById(`tabs-${agentId}`);
   if (tabsEl) {
@@ -1002,10 +1299,28 @@ function switchTab(agentId, round) {
 }
 
 function renderAgentContent(agentId, round) {
+  // Debounce: max one render per 16ms per agent
+  if (_renderTimers[agentId]) return;
+  _renderTimers[agentId] = setTimeout(() => {
+    _renderTimers[agentId] = null;
+    _doRenderAgentContent(agentId, round);
+  }, 16);
+}
+
+function _doRenderAgentContent(agentId, round) {
   const contentEl = document.getElementById(`content-${agentId}`);
   if (!contentEl) return;
   const data = agentData[agentId] && agentData[agentId][round];
   if (!data || !data.text) {
+    // Show "Observing" for rounds this agent doesn't participate in
+    if (serverMode === 'ideate') {
+      const roundAgents = roundAgentMap[String(round)] || [];
+      if (roundAgents.length > 0 && !roundAgents.includes(agentId)) {
+        const pName = phaseNames[String(round)] || `Round ${round}`;
+        contentEl.innerHTML = `<span class="placeholder" style="opacity:0.4;font-style:italic">👁 Observing ${pName} — not active this round</span>`;
+        return;
+      }
+    }
     contentEl.innerHTML = '<span class="placeholder">Waiting...</span>';
     return;
   }
@@ -1022,6 +1337,8 @@ function updateRoundPips(current, total) {
   for (let i = 1; i <= total; i++) {
     const pip = document.createElement('div');
     pip.className = 'round-pip' + (i < current ? ' done' : i === current ? ' active' : '');
+    pip.title = phaseNames[String(i)] || `Round ${i}`;
+    pip.onclick = () => jumpToRound(i);
     pips.appendChild(pip);
   }
   const modeEl = document.getElementById('roundMode');
@@ -1081,6 +1398,12 @@ function startDebate() {
     return;
   }
 
+  // Persist topic/domain for next session
+  localStorage.setItem('arena_topic', topic);
+  localStorage.setItem('arena_domain', domain);
+  sessionTopic = topic;
+  sessionStartTime = Date.now();
+
   totalRounds = 5;
   currentRound = 0;
   currentPhase = '';
@@ -1089,8 +1412,9 @@ function startDebate() {
   debateRunning = true;
   debatePaused = false;
 
-  // Hide previous synthesis/harvest panels
+  // Hide previous synthesis/harvest/verdict panels
   document.getElementById('synthesisPanel').style.display = 'none';
+  document.getElementById('verdictPanel').style.display = 'none';
 
   document.getElementById('startBtn').disabled = true;
   setStatus('live', 'CONNECTING...');
@@ -1101,7 +1425,8 @@ function startDebate() {
   ws = new WebSocket(`ws://${location.host}/ws/debate`);
 
   ws.onopen = () => {
-    ws.send(JSON.stringify({ topic, domain }));
+    const rounds = parseInt(document.getElementById('roundsInput').value) || 8;
+    ws.send(JSON.stringify({ topic, domain, mode: currentMode, rounds }));
     setStatus('live', 'LIVE');
   };
 
@@ -1134,9 +1459,31 @@ function handleMessage(msg) {
       debateAgents = msg.agents;
       phaseNames = msg.phases || {};
       totalRounds = msg.total_phases || 5;
+      serverMode = msg.mode || 'ideate';
+      roundAgentMap = msg.round_agents || {};
       initAgentData(debateAgents, totalRounds);
       renderArena(debateAgents, totalRounds);
+      // In ideation mode, set each agent's initial tab to their first participating round
+      if (serverMode === 'ideate' && Object.keys(roundAgentMap).length > 0) {
+        debateAgents.forEach(a => {
+          for (let r = 1; r <= totalRounds; r++) {
+            const ra = roundAgentMap[String(r)] || [];
+            if (ra.includes(a.id)) {
+              activeTab[a.id] = r;
+              const tabsEl = document.getElementById(`tabs-${a.id}`);
+              if (tabsEl) {
+                tabsEl.querySelectorAll('.round-tab').forEach(t => {
+                  t.classList.toggle('active-tab', parseInt(t.dataset.round) === r);
+                });
+              }
+              break;
+            }
+          }
+        });
+      }
       document.getElementById('roundTracker').style.display = 'flex';
+      document.getElementById('roundTracker').querySelector('.round-label').textContent =
+        serverMode === 'debate' ? 'Rounds' : 'Stages';
       const pipsEl = document.getElementById('roundPips');
       pipsEl.innerHTML = '';
       for (let i = 0; i < totalRounds; i++) {
@@ -1151,12 +1498,39 @@ function handleMessage(msg) {
       currentRound = msg.round;
       currentPhase = msg.phase || '';
       updateRoundPips(msg.round, totalRounds);
+      // Reset all cards to full opacity first, then dim inactive ones
+      if (serverMode === 'ideate') {
+        debateAgents.forEach(a => {
+          const card = document.getElementById(`card-${a.id}`);
+          if (card) { card.style.opacity = '1'; card.style.transition = 'opacity 0.4s'; }
+        });
+        if (msg.active_agents) {
+          debateAgents.forEach(a => {
+            const card = document.getElementById(`card-${a.id}`);
+            if (card) {
+              const isActive = msg.active_agents.includes(a.id);
+              card.style.opacity = isActive ? '1' : '0.35';
+            }
+          });
+        }
+      }
       break;
 
     case 'agent_start': {
       activeAgent = msg.agent_id;
       activeTab[msg.agent_id] = msg.round;
       switchTab(msg.agent_id, msg.round);
+
+      // Start agent timer
+      agentTimers[msg.agent_id] = { start: Date.now(), elapsed: 0 };
+      const timerEl = document.getElementById(`timer-${msg.agent_id}`);
+      if (timerEl) { timerEl.textContent = '0.0s'; timerEl.className = 'agent-timer timing'; }
+
+      // Scroll to active agent card
+      const activeCard = document.getElementById(`card-${msg.agent_id}`);
+      if (activeCard) {
+        activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
 
       const agentObj = debateAgents.find(a => a.id === msg.agent_id);
       document.getElementById('lcAgentName').textContent = agentObj
@@ -1177,7 +1551,32 @@ function handleMessage(msg) {
       break;
     }
 
+    case 'verdict_start': {
+      verdictText = '';
+      const vp = document.getElementById('verdictPanel');
+      vp.style.display = 'block';
+      const vHeader = vp.querySelector('.verdict-header');
+      if (serverMode === 'ideate') {
+        vHeader.innerHTML = '<span class="verdict-gavel">📊</span><h3>Venture Brief</h3>';
+        document.getElementById('verdictBody').innerHTML =
+          '<div class="verdict-streaming">📊 The venture analyst is evaluating...<span class="cursor"></span></div>';
+      } else {
+        vHeader.innerHTML = '<span class="verdict-gavel">⚖️</span><h3>Verdict</h3>';
+        document.getElementById('verdictBody').innerHTML =
+          '<div class="verdict-streaming">⚖️ The judge is deliberating...<span class="cursor"></span></div>';
+      }
+      setTimeout(() => vp.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+      break;
+    }
+
     case 'token':
+      if (msg.agent_id === '__verdict__') {
+        verdictText += msg.token;
+        const vBody = document.getElementById('verdictBody');
+        vBody.innerHTML = verdictText.replace(/\n/g, '<br>') + '<span class="cursor"></span>';
+        vBody.scrollTop = vBody.scrollHeight;
+        break;
+      }
       if (agentData[msg.agent_id] && agentData[msg.agent_id][currentRound] !== undefined) {
         agentData[msg.agent_id][currentRound].text += msg.token;
         if (activeTab[msg.agent_id] === currentRound) {
@@ -1185,6 +1584,13 @@ function handleMessage(msg) {
         }
       }
       break;
+
+    case 'verdict': {
+      const vBody = document.getElementById('verdictBody');
+      const text = msg.text || verdictText;
+      vBody.innerHTML = text.replace(/\n/g, '<br>');
+      break;
+    }
 
     case 'agent_done':
       if (agentData[msg.agent_id] && agentData[msg.agent_id][msg.round]) {
@@ -1197,6 +1603,15 @@ function handleMessage(msg) {
         }
         renderAgentContent(msg.agent_id, msg.round);
       }
+      // Stop agent timer and display elapsed
+      if (agentTimers[msg.agent_id]) {
+        agentTimers[msg.agent_id].elapsed = ((Date.now() - agentTimers[msg.agent_id].start) / 1000).toFixed(1);
+        const timerEl = document.getElementById(`timer-${msg.agent_id}`);
+        if (timerEl) {
+          timerEl.textContent = `${agentTimers[msg.agent_id].elapsed}s`;
+          timerEl.className = 'agent-timer';
+        }
+      }
       {
         const ind = document.getElementById(`ind-${msg.agent_id}`);
         const card = document.getElementById(`card-${msg.agent_id}`);
@@ -1205,6 +1620,14 @@ function handleMessage(msg) {
       }
       activeAgent = null;
       document.getElementById('lcAgentName').textContent = '';
+      // In ideation mode, unlock the tab that now has data (remove observing if any)
+      if (serverMode === 'ideate') {
+        const tabsEl = document.getElementById(`tabs-${msg.agent_id}`);
+        if (tabsEl) {
+          const tab = tabsEl.querySelector(`.round-tab[data-round="${msg.round}"]`);
+          if (tab) { tab.classList.remove('observing'); tab.classList.add('has-data'); }
+        }
+      }
       break;
 
     case 'debate_paused':
@@ -1227,12 +1650,30 @@ function handleMessage(msg) {
       {
         const banner = document.createElement('div');
         banner.className = 'harvest-banner';
-        banner.innerHTML = `<h3>🌾 Ideas Harvested</h3><p>You stopped the session early. All generated ideas are preserved below.</p>`;
+        if (serverMode === 'debate') {
+          banner.innerHTML = `<h3>⚔️ Debate Stopped</h3><p>The debate was stopped early. All arguments are preserved below.</p>
+            <div class="export-bar">
+              <button class="btn-export export-json" onclick="exportTranscript('json')">Export JSON</button>
+              <button class="btn-export export-md" onclick="exportTranscript('md')">Export Markdown</button>
+              <button class="btn-export export-copy" onclick="exportTranscript('copy')">Copy to Clipboard</button>
+              <button class="btn-export export-save" onclick="saveToServer()">Save to Server</button>
+            </div>`;
+        } else {
+          banner.innerHTML = `<h3>🌾 Ideas Harvested</h3><p>You stopped the session early. All generated ideas are preserved below.</p>
+            <div class="export-bar">
+              <button class="btn-export export-json" onclick="exportTranscript('json')">Export JSON</button>
+              <button class="btn-export export-md" onclick="exportTranscript('md')">Export Markdown</button>
+              <button class="btn-export export-copy" onclick="exportTranscript('copy')">Copy to Clipboard</button>
+              <button class="btn-export export-save" onclick="saveToServer()">Save to Server</button>
+            </div>`;
+        }
         document.getElementById('arena').appendChild(banner);
       }
       debateAgents.forEach(a => {
         const ind = document.getElementById(`ind-${a.id}`);
+        const card = document.getElementById(`card-${a.id}`);
         if (ind) ind.className = 'agent-indicator';
+        if (card) card.style.opacity = '1';
       });
       renderSynthesis(true);
       break;
@@ -1245,13 +1686,31 @@ function handleMessage(msg) {
       {
         const banner = document.createElement('div');
         banner.className = 'complete-banner';
-        banner.innerHTML = `<h3>Ideation Complete</h3><p>All 5 phases finished &mdash; scroll down for the full ideation transcript.</p>`;
+        if (serverMode === 'debate') {
+          banner.innerHTML = `<h3>Debate Complete</h3><p>All ${totalRounds} rounds finished &mdash; scroll down for the verdict and full transcript.</p>
+            <div class="export-bar">
+              <button class="btn-export export-json" onclick="exportTranscript('json')">Export JSON</button>
+              <button class="btn-export export-md" onclick="exportTranscript('md')">Export Markdown</button>
+              <button class="btn-export export-copy" onclick="exportTranscript('copy')">Copy to Clipboard</button>
+              <button class="btn-export export-save" onclick="saveToServer()">Save to Server</button>
+            </div>`;
+        } else {
+          banner.innerHTML = `<h3>Ideation Complete</h3><p>All 6 stages finished &mdash; scroll down for the venture brief and full transcript.</p>
+            <div class="export-bar">
+              <button class="btn-export export-json" onclick="exportTranscript('json')">Export JSON</button>
+              <button class="btn-export export-md" onclick="exportTranscript('md')">Export Markdown</button>
+              <button class="btn-export export-copy" onclick="exportTranscript('copy')">Copy to Clipboard</button>
+              <button class="btn-export export-save" onclick="saveToServer()">Save to Server</button>
+            </div>`;
+        }
         document.getElementById('arena').appendChild(banner);
       }
       updateRoundPips(totalRounds + 1, totalRounds);
       debateAgents.forEach(a => {
         const ind = document.getElementById(`ind-${a.id}`);
+        const card = document.getElementById(`card-${a.id}`);
         if (ind) ind.className = 'agent-indicator';
+        if (card) card.style.opacity = '1';
       });
       renderSynthesis(false);
       break;
@@ -1343,6 +1802,15 @@ function renderAgentList() {
           <label>Temperature (0.1 – 2.0)</label>
           <input type="number" step="0.1" min="0.1" max="2.0" value="${agent.temperature || 1.0}" onchange="editAgents[${idx}].temperature=parseFloat(this.value)">
         </div>
+        <div class="ar-field">
+          <label>Debate Stance</label>
+          <select onchange="editAgents[${idx}].debate_stance=this.value">
+            <option value="FOR"${(agent.debate_stance||'') === 'FOR' ? ' selected' : ''}>FOR</option>
+            <option value="AGAINST"${(agent.debate_stance||'') === 'AGAINST' ? ' selected' : ''}>AGAINST</option>
+            <option value="WILDCARD"${(agent.debate_stance||'WILDCARD') === 'WILDCARD' ? ' selected' : ''}>WILDCARD</option>
+            <option value="CATALYST"${(agent.debate_stance||'') === 'CATALYST' ? ' selected' : ''}>CATALYST</option>
+          </select>
+        </div>
         <div class="ar-field full-width">
           <label>Persona / System Prompt</label>
           <textarea rows="3" onchange="editAgents[${idx}].persona=this.value">${esc(agent.persona || '')}</textarea>
@@ -1375,6 +1843,7 @@ function addNewAgentRow() {
     color: color,
     persona: 'You are a creative problem solver. Be specific and actionable.',
     temperature: 1.0,
+    debate_stance: 'WILDCARD',
   });
   renderAgentList();
   const newIdx = editAgents.length - 1;
@@ -1395,6 +1864,7 @@ async function saveAgents() {
       color: a.color,
       persona: a.persona || '',
       temperature: a.temperature || 1.0,
+      debate_stance: a.debate_stance || 'WILDCARD',
     };
   });
 
@@ -1441,15 +1911,21 @@ function renderSynthesis(isHarvest) {
   const body = document.getElementById('synthesisBody');
   const title = document.getElementById('synthTitle');
 
-  title.textContent = isHarvest
-    ? '🌾 Harvested Ideas — Partial Transcript'
-    : '📋 Full Ideation Transcript';
+  if (serverMode === 'debate') {
+    title.textContent = isHarvest
+      ? '⚔️ Debate Transcript — Partial'
+      : '⚔️ Full Debate Transcript';
+  } else {
+    title.textContent = isHarvest
+      ? '🌾 Harvested Ideas — Partial Transcript'
+      : '📋 Full Ideation Transcript';
+  }
 
   body.innerHTML = '';
 
   for (let r = 1; r <= totalRounds; r++) {
     const phaseName = phaseNames[String(r)] || `PHASE ${r}`;
-    const phaseCls = phaseName.toLowerCase().replace(/[^a-z\-]/g, '');
+    const phaseCls = phaseName.toLowerCase().replace(/[^a-z0-9\-]/g, '');
 
     // Check if any agent has content for this round
     let hasContent = false;
@@ -1480,6 +1956,7 @@ function renderSynthesis(isHarvest) {
         <div class="synth-entry-header">
           <span class="synth-entry-emoji">${agent.emoji}</span>
           <span class="synth-entry-name" style="color:${agent.color}">${agent.name}</span>
+          ${serverMode === 'debate' && agent.debate_stance ? `<span class="stance-badge stance-${agent.debate_stance.toLowerCase()}">${agent.debate_stance}</span>` : ''}
           <span class="synth-entry-model">${modelShort}</span>
         </div>
         <div class="synth-entry-text">${data.text.replace(/\n/g, '<br>')}</div>
@@ -1582,6 +2059,159 @@ document.addEventListener('click', (e) => {
   if (popover.contains(e.target)) return;
   if (e.target.classList.contains('card-edit-btn')) return;
   closePersonaEdit();
+});
+
+// ── Transcript Export ────────────────────────────────────────
+function buildTranscriptData() {
+  const domain = document.getElementById('domainInput').value.trim() || 'general';
+  const entries = [];
+  for (let r = 1; r <= totalRounds; r++) {
+    const phaseName = phaseNames[String(r)] || `PHASE ${r}`;
+    debateAgents.forEach(agent => {
+      const data = agentData[agent.id] && agentData[agent.id][r];
+      if (!data || !data.text || !data.text.trim()) return;
+      entries.push({
+        round: r,
+        phase: phaseName,
+        agent_id: agent.id,
+        agent_name: agent.name,
+        agent_emoji: agent.emoji,
+        stance: agent.debate_stance || '',
+        text: data.text.trim(),
+        timer: agentTimers[agent.id] ? agentTimers[agent.id].elapsed : null,
+      });
+    });
+  }
+  return {
+    topic: sessionTopic || document.getElementById('topicInput').value.trim(),
+    domain: domain,
+    mode: serverMode,
+    rounds: totalRounds,
+    agents: debateAgents.map(a => ({ id: a.id, name: a.name, emoji: a.emoji, color: a.color, stance: a.debate_stance })),
+    entries: entries,
+    verdict: verdictText || null,
+    timestamp: sessionStartTime || Date.now(),
+  };
+}
+
+function exportTranscript(format) {
+  const data = buildTranscriptData();
+
+  if (format === 'json') {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `arena_${data.mode}_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('JSON exported ✓', 'success');
+
+  } else if (format === 'md') {
+    let md = `# ${data.mode === 'debate' ? '⚔️ Debate' : '💡 Ideation'}: ${data.topic}\n\n`;
+    md += `**Domain:** ${data.domain} | **Rounds:** ${data.rounds} | **Date:** ${new Date(data.timestamp).toLocaleString()}\n\n---\n\n`;
+
+    let lastRound = 0;
+    data.entries.forEach(e => {
+      if (e.round !== lastRound) {
+        lastRound = e.round;
+        md += `## ${e.phase}\n\n`;
+      }
+      const stanceTag = e.stance ? ` [${e.stance}]` : '';
+      const timerTag = e.timer ? ` _(${e.timer}s)_` : '';
+      md += `### ${e.agent_emoji} ${e.agent_name}${stanceTag}${timerTag}\n\n${e.text}\n\n---\n\n`;
+    });
+
+    if (data.verdict) {
+      md += `## ⚖️ Verdict\n\n${data.verdict}\n`;
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `arena_${data.mode}_${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Markdown exported ✓', 'success');
+
+  } else if (format === 'copy') {
+    let text = `${data.mode === 'debate' ? '⚔️ DEBATE' : '💡 IDEATION'}: ${data.topic}\n\n`;
+    let lastRound = 0;
+    data.entries.forEach(e => {
+      if (e.round !== lastRound) {
+        lastRound = e.round;
+        text += `═══ ${e.phase} ═══\n\n`;
+      }
+      const stanceTag = e.stance ? ` [${e.stance}]` : '';
+      text += `${e.agent_emoji} ${e.agent_name}${stanceTag}:\n${e.text}\n\n`;
+    });
+    if (data.verdict) {
+      text += `═══ VERDICT ═══\n\n${data.verdict}\n`;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Copied to clipboard ✓', 'success');
+    }).catch(() => {
+      showToast('Copy failed — try again', 'error');
+    });
+  }
+}
+
+async function saveToServer() {
+  const data = buildTranscriptData();
+  try {
+    const resp = await fetch('/api/transcript/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (resp.ok) {
+      const result = await resp.json();
+      showToast(`Saved to server ✓ (${result.id})`, 'success');
+    } else {
+      showToast('Save failed — server error', 'error');
+    }
+  } catch (e) {
+    showToast('Save failed — connection error', 'error');
+  }
+}
+
+function showToast(message, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = `toast toast-visible toast-${type}`;
+  setTimeout(() => { toast.className = 'toast'; }, 2500);
+}
+
+// ── Clickable Round Pips ────────────────────────────────────
+function jumpToRound(round) {
+  if (round < 1 || round > totalRounds) return;
+  const roundAgents = roundAgentMap[String(round)] || [];
+  debateAgents.forEach(agent => {
+    // In ideation mode, only switch agents that participated in this round
+    if (serverMode === 'ideate' && roundAgents.length > 0 && !roundAgents.includes(agent.id)) {
+      return;
+    }
+    if (agentData[agent.id] && agentData[agent.id][round]) {
+      switchTab(agent.id, round);
+    }
+  });
+}
+
+// ── Agent Timer Ticker ──────────────────────────────────────
+setInterval(() => {
+  if (!debateRunning || !activeAgent) return;
+  const t = agentTimers[activeAgent];
+  if (!t) return;
+  const elapsed = ((Date.now() - t.start) / 1000).toFixed(1);
+  const timerEl = document.getElementById(`timer-${activeAgent}`);
+  if (timerEl) timerEl.textContent = `${elapsed}s`;
+}, 100);
+
+// ── Auto-resize textarea ────────────────────────────────────────────
+document.getElementById('topicInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.max(44, this.scrollHeight) + 'px';
 });
 
 // ── Keyboard shortcuts ──────────────────────────────────────
